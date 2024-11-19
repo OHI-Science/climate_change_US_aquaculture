@@ -1,0 +1,204 @@
+---
+title: "CMIP6_NorthAmerica_rasterprep"
+output: html_document
+date: '2022-06-21'
+editor_options: 
+  chunk_output_type: console
+---
+
+
+## be sure to run all this before starting
+```{r setup, include=FALSE}
+library(raster)
+library(tidyverse)
+#install.packages("terra")
+
+
+all_files <- expand.grid(scenario = c("ssp126", "ssp245", "ssp370", "ssp585"),
+                         years = c("2001-2020", "2021-2040", "2041-2060", "2061-2080", "2081-2100"),
+                         months = c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"))
+
+
+```
+
+
+For each month calculate CMD.
+```{r}
+
+scenario="ssp126"
+years = "2001-2020"
+
+drought_fun <- function(scen=scenario, yrs=years){
+
+months <- c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")
+for(month in months){ # month = months[1]
+  eref = raster(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/NA_cmip_tiff/13GCMs_ensemble_%s_%sM_Eref%s.tif", scen, yrs, month))
+  ppt = raster(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/NA_cmip_tiff/13GCMs_ensemble_%s_%sM_PPT%s.tif", scen, yrs, month))
+  
+  cmd <- eref-ppt
+  writeRaster(cmd, 
+              sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_monthly/CMD_%s_%s_%s.tif", scen, yrs, month), 
+              overwrite=TRUE)
+  
+  cmd_abs <- cmd
+  cmd_abs[cmd_abs<=0]<- NA
+  cmd_abs[cmd_abs>0]<- 1
+  
+  writeRaster(cmd_abs, 
+              sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_boolean_monthly/CMD_monthly_shortage_%s_%s_%s.tif", scen, yrs, month), 
+              overwrite=TRUE)
+  
+#  plot(cmd_abs)
+}}
+
+all_files
+
+all_files_scen_yrs <- all_files %>%
+  select(scenario, years) %>%
+  unique()
+  
+for(row in 1:length(all_files_scen_yrs$scenario)){ # row = 12
+  cat(row)
+scenario= all_files_scen_yrs$scenario[row]
+years = all_files_scen_yrs$years[row]
+drought_fun(scen=scenario, yrs=years)
+}
+
+
+```
+
+Sum CMD for all months within a scenario/year to get yearly deficit.
+```{r}
+all_files
+row = 1
+
+for(row in 1:length(all_files_scen_yrs$scenario)){ # row=5
+scenario= all_files_scen_yrs$scenario[row]
+years = all_files_scen_yrs$years[row]
+
+scenario_yr <- paste(scenario, years, sep="_")
+
+scen_yr_rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_monthly",
+           pattern = scenario_yr, full=TRUE)
+scen_yr_rasts <- grep("aux.xml", scen_yr_rasts, invert=TRUE, value=TRUE)
+
+#raster_stack <- stack(scen_yr_rasts)
+#raster_sum <- calc(raster_stack, sum, na.rm=TRUE)
+
+scen_yr_stack <- terra::rast(scen_yr_rasts)
+scen_yr_sum <- terra::app(scen_yr_stack, sum, na.rm=TRUE)
+
+#check <- terra::rast(raster_sum)
+#diff_raster <- check-scen_yr_sum
+terra::writeRaster(scen_yr_sum, 
+                   sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year/CMD_%s.tif", scenario_yr), overwrite=TRUE)
+}
+
+future <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year/CMD_ssp585_2081-2100.tif")
+future[future<=0] <- NA 
+plot(future, main="ssp585_2081-2100")
+current <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year/CMD_ssp585_2001-2020.tif")
+current[current<=0] <- NA 
+plot(current, main="ssp585_2001-2020")
+
+diff <- future - current
+plot(diff, main = "future - current")
+
+
+```
+
+Rescale
+```{r}
+# Cat: change these values to adjust scaling:
+
+pressure_zero <- 700
+pressure_one <- 1500
+
+# then run all this:
+for(row in 1:length(all_files_scen_yrs$scenario)){
+scenario= all_files_scen_yrs$scenario[row]
+years = all_files_scen_yrs$years[row]
+
+scenario_yr <- paste(scenario, years, sep="_")
+
+scen_yr_rast <- terra::rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year/CMD_%s.tif", scenario_yr))
+scen_yr_rast[scen_yr_rast <= pressure_zero] <- pressure_zero
+scen_yr_rast[scen_yr_rast >= (pressure_one)] <- pressure_one
+
+
+#rescaled_rast <- (1000 - pressure_zero)/(pressure_one - pressure_zero)
+rescaled_rast <- (scen_yr_rast - pressure_zero)/(pressure_one - pressure_zero)
+
+#check <- terra::rast(raster_sum)
+#diff_raster <- check-scen_yr_sum
+terra::writeRaster(rescaled_rast, 
+                   sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled/CMD_rescaled_%s.tif", scenario_yr), overwrite=TRUE)
+}
+
+current <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled/CMD_rescaled_ssp585_2001-2020.tif")
+plot(current, main="2001-2020")
+
+future <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled/CMD_rescaled_ssp585_2081-2100.tif")
+plot(future, main="ssp585_2081-2100")
+
+```
+
+
+Sum number of months with a deficit:
+```{r}
+all_files
+
+for(row in 1:length(all_files_scen_yrs$scenario)){ #row=5
+scenario= all_files_scen_yrs$scenario[row]
+years = all_files_scen_yrs$years[row]
+
+scenario_yr <- paste(scenario, years, sep="_")
+
+scen_yr_rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_boolean_monthly",
+           pattern = scenario_yr, full=TRUE)
+scen_yr_rasts <- grep("aux.xml", scen_yr_rasts, invert=TRUE, value=TRUE)
+
+scen_yr_stack <- terra::rast(scen_yr_rasts)
+
+m <- c(-Inf, 0, NA,
+       0, Inf, 1)
+rclmat <- matrix(m, ncol=2, byrow=TRUE)
+scen_yr_stack_sub <- terra::classify(scen_yr_stack, rclmat, include.lowest=TRUE)
+
+scen_yr_sum <- terra::app(scen_yr_stack_sub, sum, na.rm=TRUE)
+
+terra::writeRaster(scen_yr_sum, 
+                   sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_boolean_year/CMD_abs_%s.tif", scenario_yr), overwrite=TRUE)
+}
+
+future <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_boolean_year/CMD_abs_ssp585_2081-2100.tif")
+plot(future, main="ssp585_2081-2100")
+current <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_boolean_year/CMD_abs_ssp585_2001-2020.tif")
+plot(current, main="ssp585_2001-2020")
+
+diff <- future - current
+plot(diff, main = "future - current")
+
+```
+
+
+## CRS and resolution
+```{r}
+
+# spatial template
+template <- raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+
+drought_rasters <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled", full=TRUE)
+ #tmp <- area(raster(wb_rasters[1]))
+
+# in this case we are going from a higher resolution raster to a lower resolution raster
+# I think bilinear interpolation will be better here.
+
+for(drought in drought_rasters){ # drought = drought_rasters[1]
+  drought_rast <- raster(drought)
+  filename = gsub("rescaled_", "", basename(drought))
+  projectRaster(drought_rast, template, method="bilinear", 
+                        filename = sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/%s", filename), overwrite=TRUE)
+
+}
+```

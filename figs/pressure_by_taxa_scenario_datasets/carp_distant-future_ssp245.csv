@@ -1,0 +1,9 @@
+presence,variable,value,yr_scen,taxa
+0,wb_ssp245_2081-2100,0.08861450535132372,distant-future_ssp245,carp
+0,CMD_ssp245_2081-2100,0.11808305141967096,distant-future_ssp245,carp
+0,inuncoast_rcp4p5_wtsub_2080_rp0005_0,0.0018807598722270136,distant-future_ssp245,carp
+0,species_Tavg_ssp245_2081-2100,0.23168195290260207,distant-future_ssp245,carp
+1,wb_ssp245_2081-2100,0.28203024256373255,distant-future_ssp245,carp
+1,CMD_ssp245_2081-2100,0.03731122669324664,distant-future_ssp245,carp
+1,inuncoast_rcp4p5_wtsub_2080_rp0005_0,0.0029733135738671053,distant-future_ssp245,carp
+1,species_Tavg_ssp245_2081-2100,0,distant-future_ssp245,carp

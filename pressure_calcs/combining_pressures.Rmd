@@ -1,0 +1,90 @@
+---
+title: "Untitled"
+output: html_document
+date: "2022-07-28"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(terra)
+library(tidyverse)
+library(here)
+
+combos <- read_csv(here("pressure_calcs/filepaths_for_pressure_combos.csv"), na="NA")
+
+#list of taxa we will evaluate
+taxa <- c("trout", "tilapia", "carp", "catfish", "sturgeon", "bass", "perch")
+
+
+```
+
+list of scenario years we want to run (pressures for each category will be combined):
+```{r}
+
+yr_scens <- unique(combos$year_scenario)
+yr_scens <- yr_scens[!is.na(yr_scens )]
+
+table(combos$year_scenario) # check that all have 4 layers!
+
+```
+
+Combine non-taxa specific pressures using product:
+```{r}
+
+for(yr_scen in yr_scens){
+#yr_scen = yr_scens[1]
+rast_paths <- filter(combos, year_scenario %in% yr_scen) %>%
+  filter(pressure != "tmp_taxa") %>%
+  mutate(path = sprintf("%s/%s.tif", file_path, file_name)) %>%
+  pull(path)
+
+rast_stack <- rast(rast_paths)
+rast_stack[is.na(rast_stack)] <- 0
+rast_stack_inverse <- 1-rast_stack
+rast_prod <- app(rast_stack_inverse, fun=prod)
+#rast_gm_inverse <- rast_prod^(1/dim(rast_stack)[3])
+rast_gm <- 1-rast_prod
+writeRaster(rast_gm, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/%s_no_taxa_specific.tif", yr_scen), overwrite=TRUE)
+}
+
+list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures")
+```
+
+Combine pressures using product including taxa specific thresholds:
+```{r}
+
+for(yr_scen in yr_scens){
+#yr_scen = yr_scens[4]
+  
+  for(taxon in taxa){ 
+  # taxon = "carp"
+rast_paths <- filter(combos, year_scenario %in% yr_scen) %>%
+  mutate(file_name = ifelse(pressure == "tmp_taxa", paste0(taxon, file_name), file_name)) %>%
+  mutate(path = sprintf("%s/%s.tif", file_path, file_name)) %>%
+  pull(path)
+cat(length(rast_paths))
+
+rast_stack <- rast(rast_paths)
+rast_stack[is.na(rast_stack)] <- 0
+rast_stack_inverse <- 1-rast_stack
+rast_prod <- app(rast_stack_inverse, fun=prod)
+#rast_gm_inverse <- rast_prod^(1/dim(rast_stack)[3])
+rast_gm <- 1-rast_prod
+writeRaster(rast_gm, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/%s_%s.tif", yr_scen, taxon), overwrite=TRUE)
+}}
+```
+
+```{r}
+
+trt_near <- raster::raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/near-future_ssp245_carp.tif")
+plot(trt_near)
+trt_near_xx <- raster::raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/near-future_ssp585_trout.tif")
+plot(trt_near_xx)
+trt_current <- raster::raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/current_ssp245_trout.tif")
+plot(trt_current)
+plot(trt_near_x)
+plot(trt_near_xx)
+dif <- trt_near - trt_current
+plot(dif)
+```

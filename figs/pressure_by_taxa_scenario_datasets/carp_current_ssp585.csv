@@ -1,0 +1,9 @@
+presence,variable,value,yr_scen,taxa
+0,wb_ssp585_2001-2020,0.024630979057940993,current_ssp585,carp
+0,CMD_ssp585_2001-2020,0.0858956255894524,current_ssp585,carp
+0,inuncoast_historical_wtsub_hist_rp0005_0,0.001491160471241192,current_ssp585,carp
+0,species_Tavg_ssp585_2001-2020,0.3828958388277493,current_ssp585,carp
+1,wb_ssp585_2001-2020,0.07469181010943197,current_ssp585,carp
+1,CMD_ssp585_2001-2020,0.020432509030491375,current_ssp585,carp
+1,inuncoast_historical_wtsub_hist_rp0005_0,0.00259020874489522,current_ssp585,carp
+1,species_Tavg_ssp585_2001-2020,0,current_ssp585,carp

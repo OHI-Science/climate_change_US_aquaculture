@@ -1,0 +1,9 @@
+presence,variable,value,yr_scen,taxa
+0,wb_ssp245_2001-2020,0.029890888183050884,current_ssp245,trout
+0,CMD_ssp245_2001-2020,0.0808795568745845,current_ssp245,trout
+0,inuncoast_historical_wtsub_hist_rp0005_0,0.0015561219247943745,current_ssp245,trout
+0,species_Tavg_ssp245_2001-2020,0.9533354238910523,current_ssp245,trout
+1,wb_ssp245_2001-2020,6.0855506307446793e-5,current_ssp245,trout
+1,CMD_ssp245_2001-2020,0.0905022136524169,current_ssp245,trout
+1,inuncoast_historical_wtsub_hist_rp0005_0,0.001900986343792038,current_ssp245,trout
+1,species_Tavg_ssp245_2001-2020,0.25000629103297417,current_ssp245,trout

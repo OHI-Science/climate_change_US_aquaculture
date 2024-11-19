@@ -1,0 +1,195 @@
+---
+title: "Average temperature"
+output: html_document
+date: '2022-07-07'
+editor_options: 
+  chunk_output_type: console
+---
+  
+Purpose: Test the sensitivity of our development time parameter on biological pressure.
+
+```{r setup, include=FALSE}
+library(raster)
+library(tidyverse)
+library(here)
+#install.packages("terra")
+
+## change temperature data and stocks in this spreadsheet:
+tolerances <- read_csv(here("pressure_prep/data_inputs/thermal_tolerance.csv"))
+
+all_files <- expand.grid(scenario = c("ssp126", "ssp245", "ssp370", "ssp585"),
+                         years = c("2001-2020", "2021-2040", "2041-2060", "2061-2080", "2081-2100"),
+                         stock = tolerances$stock)
+
+
+```
+Combine monthly cold/hot temperature pressures to get yearly pressure score based on number of months needed for harvest.
+
+# No buffer
+
+```{r}
+
+for(row in 1:length(all_files$scenario)){ # row=121
+
+scenario = all_files$scenario[row]
+years = all_files$years[row]
+stock = all_files$stock[row]
+
+scenario_yr <- paste(scenario, years, sep="_")
+
+overwinter <- tolerances[tolerances$stock==stock, "overwinter"] %>% pull()
+rear_time <- tolerances[tolerances$stock==stock, "harvest_time"] %>% pull()
+rear_time <- ifelse(rear_time >= 12, 12, rear_time)
+
+## sum cold pressures
+cold_rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_monthly",
+           pattern = scenario_yr, full=TRUE)
+cold_rasts <- grep(stock, cold_rasts, value=TRUE)
+cold_rasts <- grep("cold_rescale", cold_rasts, value=TRUE)
+cat(length(cold_rasts))
+cold_stack <- terra::rast(cold_rasts)
+cold_sum <- terra::app(cold_stack, sum, na.rm=TRUE)
+
+#if(overwinter=="y"){
+#cold_pressure_zero = 12 - rear_time 
+#cold_pressure_one <- 6
+#cold_sum[cold_sum <= cold_pressure_zero] <- cold_pressure_zero
+#cold_sum[cold_sum >= (cold_pressure_one)] <- cold_pressure_one
+#}else{
+cold_pressure_zero = 12 - rear_time
+cold_pressure_one <- (12 - rear_time) +0  #add 1- 3 for buffer for sensitivity testing.
+cold_sum[cold_sum <= cold_pressure_zero] <- 0
+cold_sum[cold_sum > (cold_pressure_one)] <- 1
+#}
+
+cold_rescale <- cold_sum
+
+
+## heat pressure a function of how long it takes stock to develop
+
+heat_rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_monthly",
+           pattern = scenario_yr, full=TRUE)
+heat_rasts <- grep(stock, heat_rasts, value=TRUE)
+heat_rasts <- grep("hot_rescale", heat_rasts, value=TRUE)
+cat(length(heat_rasts))
+
+heat_stack <- terra::rast(heat_rasts)
+heat_sum <- terra::app(heat_stack, sum, na.rm=TRUE)
+
+
+hot_pressure_zero = 12 - rear_time
+hot_pressure_one = hot_pressure_zero +0 #add 1- 3 for buffer for sensitivity testing
+
+heat_sum[heat_sum <= hot_pressure_zero] <- 0
+heat_sum[heat_sum > (hot_pressure_one)] <- 1
+
+heat_rescale <- heat_sum
+
+total_pressure <- terra::app(c(cold_rescale, heat_rescale), sum, na.rm=TRUE)
+total_pressure[total_pressure > 1] <- 1
+
+terra::writeRaster(total_pressure, 
+                  sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly/no_buffer_%s_Tavg_%s.tif", stock, scenario_yr), overwrite=TRUE)
+}
+
+```
+
+
+# 2 month buffer
+
+```{r}
+
+for(row in 1:length(all_files$scenario)){ # row=2
+
+scenario = all_files$scenario[row]
+years = all_files$years[row]
+stock = all_files$stock[row]
+
+scenario_yr <- paste(scenario, years, sep="_")
+
+overwinter <- tolerances[tolerances$stock==stock, "overwinter"] %>% pull()
+rear_time <- tolerances[tolerances$stock==stock, "harvest_time"] %>% pull()
+rear_time <- ifelse(rear_time >= 12, 12, rear_time)
+
+## sum cold pressures
+cold_rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_monthly",
+           pattern = scenario_yr, full=TRUE)
+cold_rasts <- grep(stock, cold_rasts, value=TRUE)
+cold_rasts <- grep("cold_rescale", cold_rasts, value=TRUE)
+cat(length(cold_rasts))
+cold_stack <- terra::rast(cold_rasts)
+cold_sum <- terra::app(cold_stack, sum, na.rm=TRUE)
+
+#if(overwinter=="y"){
+#cold_pressure_zero = 12 - rear_time 
+#cold_pressure_one <- 6
+#cold_sum[cold_sum <= cold_pressure_zero] <- cold_pressure_zero
+#cold_sum[cold_sum >= (cold_pressure_one)] <- cold_pressure_one
+#}else{
+cold_pressure_zero = 12 - rear_time
+cold_pressure_one <- (12 - rear_time) +2  #add 1- 3 for buffer for sensitivity testing.
+cold_sum[cold_sum <= cold_pressure_zero] <- cold_pressure_zero
+cold_sum[cold_sum >= (cold_pressure_one)] <- cold_pressure_one
+#}
+
+cold_rescale <- (cold_sum - cold_pressure_zero)/(cold_pressure_one - cold_pressure_zero)
+
+
+## heat pressure a function of how long it takes stock to develop
+
+heat_rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_monthly",
+           pattern = scenario_yr, full=TRUE)
+heat_rasts <- grep(stock, heat_rasts, value=TRUE)
+heat_rasts <- grep("hot_rescale", heat_rasts, value=TRUE)
+cat(length(heat_rasts))
+
+heat_stack <- terra::rast(heat_rasts)
+heat_sum <- terra::app(heat_stack, sum, na.rm=TRUE)
+
+
+hot_pressure_zero = 12 - rear_time
+hot_pressure_one = hot_pressure_zero +2 #add 1- 3 for buffer for sensitivity testing
+
+heat_sum[heat_sum <= hot_pressure_zero] <- hot_pressure_zero
+heat_sum[heat_sum >= (hot_pressure_one)] <- hot_pressure_one
+
+heat_rescale <- (heat_sum - hot_pressure_zero)/(hot_pressure_one - hot_pressure_zero)
+
+total_pressure <- terra::app(c(cold_rescale, heat_rescale), sum, na.rm=TRUE)
+total_pressure[total_pressure > 1] <- 1
+
+terra::writeRaster(total_pressure, 
+                  sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly/two_month_buffer_%s_Tavg_%s.tif", stock, scenario_yr), overwrite=TRUE)
+}
+
+
+
+```
+
+## CRS and resolution
+```{r}
+
+# spatial template
+template <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+
+temp_rasters <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly", full=TRUE)
+ #tmp <- area(raster(wb_rasters[1]))
+
+# in this case we are going from a higher resolution raster to a lower resolution raster
+# I think bilinear interpolation will be better here.
+
+for(temp in temp_rasters){ # temp = temp_rasters[1]
+  temp_rast <- terra::rast(temp)
+  filename = basename(temp)
+  terra::project(temp_rast, template, method="bilinear", 
+                        filename = sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly_crs/%s", filename), overwrite=TRUE)
+
+}
+
+
+tmp <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly_crs", full=TRUE)
+
+plot(terra::rast(tmp[555]))
+```
+
+

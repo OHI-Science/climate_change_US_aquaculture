@@ -1,0 +1,189 @@
+---
+title: "Flood"
+author: "Cat Fong"
+date: '2022-07-07'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r things}
+library(tiff)
+library(raster)
+library(sp)
+library(sf)
+library(mapview)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(viridis)
+library(ggpubr)
+
+# spatial template
+template <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+
+
+```
+
+```{r coasts 5 year}
+
+# exploring data to understand resolution of raw data.
+coastal_flood_current <- raster('/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_historical_wtsub_hist_rp0005_0.tif')
+area_check <- area(coastal_flood_current)
+## about 0.8 km2 in USA
+
+# function to aggregrate cells to decrease resolution so it is closer to our working resolution
+# and then determine proportion of cells in new larger cells that are 
+# predicted to be flooded. Convert to our working crs.
+
+flood_create <- function(flood_raster_path){ # flood_raster_path = river_flood_2030
+
+  save_name <- basename(flood_raster_path)
+  save_name <- gsub("_wtsub", "", save_name)
+  save_name <- gsub("_ensemble", "", save_name)
+  save_name <- gsub("_rp0005_0.tif", "", save_name)
+  save_name <- gsub("_rp00005.tif", "", save_name)
+  
+  flood_raster <- terra::rast(flood_raster_path)
+  flood_raster <- terra::ifel(flood_raster >=1, 1, 0)
+#  flood_raster_rast <- raster(flood_raster)
+ 
+  flood_raster_res <- terra::aggregate(flood_raster, fact=5, fun="sum")
+  flood_raster_res <- flood_raster_res/25
+  flood_raster_crs <- terra::project(flood_raster_res, template, method="bilinear")
+  
+  terra::writeRaster(flood_raster_crs, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/%s.tif", save_name), overwrite=TRUE)
+
+}
+
+```
+
+Get raster files and run data:
+
+```{r}
+
+#historical
+coastal_flood_current <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_historical_wtsub_hist_rp0005_0.tif'
+flood_create(coastal_flood_current)
+
+#rcp4p5
+coastal_flood2030_0005 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_rcp4p5_wtsub_2030_rp0005_0.tif'
+flood_create(coastal_flood2030_0005)
+
+coastal_flood2050_0005 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_rcp4p5_wtsub_2050_rp0005_0.tif'
+flood_create(coastal_flood2050_0005)
+
+coastal_flood2080_0005 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_rcp4p5_wtsub_2080_rp0005_0.tif'
+flood_create(coastal_flood2080_0005)
+
+#rcp8p5
+coastal_flood2030_0005 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_rcp8p5_wtsub_2030_rp0005_0.tif'
+flood_create(coastal_flood2030_0005)
+
+coastal_flood2050_0005 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_rcp8p5_wtsub_2050_rp0005_0.tif'
+flood_create(coastal_flood2050_0005)
+
+coastal_flood2080_0005 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/inuncoast_rcp8p5_wtsub_2080_rp0005_0.tif'
+flood_create(coastal_flood2080_0005)
+
+
+```
+
+```{r rivers 5 year}
+
+# historical
+river_flood_current <- '/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/river_flood/inunriver_historical_000000000WATCH_1980_rp00005.tif'
+flood_create(river_flood_current)
+
+# rcp4p5
+river_flood_2030 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp4p5_ensemble_2030_rp00005.tif'
+flood_create(river_flood_2030)
+
+river_flood_2050 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp4p5_ensemble_2050_rp00005.tif'
+flood_create(river_flood_2050)
+
+river_flood_2080 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp4p5_ensemble_2080_rp00005.tif'
+flood_create(river_flood_2080)
+
+# rcp8p5
+river_flood_2030 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp8p5_ensemble_2030_rp00005.tif'
+flood_create(river_flood_2030)
+
+river_flood_2050 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp8p5_ensemble_2050_rp00005.tif'
+flood_create(river_flood_2050)
+
+river_flood_2080 <- '/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp8p5_ensemble_2080_rp00005.tif'
+flood_create(river_flood_2080)
+
+now <- terra::rast(river_flood_current)
+future <- terra::rast(river_flood_2080)
+diff <- future - now
+diff
+
+```
+
+
+Combine river and coastal!
+(note: somthing is going wrong if any values other than 2 are returned while running loop.)
+```{r}
+combos <- c("historical", "rcp4p5_2030", "rcp4p5_2050", "rcp4p5_2080",  "rcp8p5_2030", "rcp8p5_2050", "rcp8p5_2080")
+
+for(combo in combos){ #combo = combos[4]
+  
+  raster_list <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure", pattern=combo, full=TRUE)
+  raster_list <- grep("river_coast", raster_list, value=TRUE, invert=TRUE)
+
+  cat(length(raster_list))
+
+raster_one <- terra::rast(raster_list[1])
+raster_two <- terra::rast(raster_list[2])
+  
+raster_sum <- raster_one + raster_two
+ 
+#raster_sum <- terra::app(raster_stack, sum, na.rm=TRUE)
+
+  raster_sum[raster_sum>1] <- 1
+  
+  terra::writeRaster(raster_sum, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_%s_rescaled.tif", combo), overwrite=TRUE)
+}
+
+```
+
+
+Try to visualize:
+```{r}
+now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_historical_rescaled.tif")
+
+now[now==0] <- NA 
+
+now <- terra::as.points(now)
+terra::plot(now, "inuncoast_historical_wtsub_hist_rp0005_0", col=rev(rainbow(5)), cex=.1, pch=20, alpha=0.05)
+terra::plot(now[now$inuncoast_historical_wtsub_hist_rp0005_0>0.2], col="orange", cex=0.1, add=TRUE)
+terra::plot(now[now$inuncoast_historical_wtsub_hist_rp0005_0>0.5], col="red", cex=0.1, add=TRUE)
+
+
+future <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_rcp4p5_2080_rescaled.tif")
+
+future[future==0] <- NA 
+
+future <- terra::as.points(future)
+terra::plot(future, "inuncoast_rcp4p5_wtsub_2080_rp0005_0", col=rev(rainbow(5)), cex=.1, pch=20, alpha=0.05)
+terra::plot(future[future$inuncoast_rcp4p5_wtsub_2080_rp0005_0>0.2], col="orange", cex=0.1, add=TRUE)
+terra::plot(future[future$inuncoast_rcp4p5_wtsub_2080_rp0005_0>0.5], col="red", cex=0.1, add=TRUE)
+```
+
+```{r}
+
+# difference
+now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_historical_rescaled.tif")
+
+future <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_rcp4p5_2080_rescaled.tif")
+
+diff <- future - now
+
+diff[diff==0] <- NA 
+
+diff <- terra::as.points(diff)
+terra::plot(diff[diff$inuncoast_rcp4p5_wtsub_2080_rp0005_0>0], "inuncoast_rcp4p5_wtsub_2080_rp0005_0", col="red", cex=.3, pch=20, alpha=0.1)
+terra::plot(diff[diff$inuncoast_rcp4p5_wtsub_2080_rp0005_0<0], "inuncoast_rcp4p5_wtsub_2080_rp0005_0", col="blue", cex=.3, pch=20, alpha=0.1, add=TRUE)
+
+```

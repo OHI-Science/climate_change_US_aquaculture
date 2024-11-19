@@ -1,0 +1,141 @@
+---
+title: "Likely aquaculture locations for each taxa"
+output: html_document
+date: "2023-09-11"
+editor_options: 
+  chunk_output_type: console
+---
+
+Goal: determine the most probable location of farm locations for each taxa based on state level data for each species, county level data indicating presence/absence of aquaculture (not species specific), and our maps of pressures for each taxa.
+```{r setup, include=FALSE}
+library(here)
+library(terra)
+library(tidyverse)
+library(sf)
+library(raster)
+
+#raster template
+template <- raster()
+template <- raster(xmn=-6500000, xmx=2500000, ymn=100000, ymx=6200000)
+
+crs(template) <- CRS('+init=EPSG:5070')
+res(template) <- 5000
+
+#writeRaster(template, here("spatial/template.tif"))
+```
+
+Get the mapping data!
+Created in "aquaculture_location/location_of_aquaculture.Rmd"
+```{r}
+map_counties <- st_read("spatial/state_county_shp/state_county_shp.gpkg") %>%
+  mutate(STATEFP = as.numeric(STATEFP))
+fips <- read_csv(here("spatial/county_state_fips_ID.csv")) %>%
+  mutate(State = toupper(state_name)) %>%
+  dplyr::select(state_fips, State) %>%
+  unique()
+
+```
+
+Make a raster for each fish taxa with the states that it is known to be reared in. Halley provided the file titled: max_value_census.csv.  
+```{r}
+
+# prepare the data
+
+location <- read.csv(here("aquaculture_location/data/max_value_census.csv")) 
+names(location) <- tolower(names(location))
+names(location)[1] <- "State"
+
+
+location <- left_join(fips, location, by = "State")
+
+location <- location %>%
+  rename(STATEFP=state_fips) %>%
+  mutate(across(bass:trout, ~ case_when(
+    . >= 0 ~ 1L,
+    is.na(.) ~ 0L,
+    TRUE ~ NA_integer_
+  )))
+
+setdiff(map_counties$STATEFP, location$STATEFP)
+setdiff(location$STATEFP, map_counties$STATEFP)
+
+map_states <- left_join(map_counties, location, by="STATEFP") %>%
+  mutate(land = 1)
+land_raster <- fasterize::fasterize(map_states, template, field="land")
+#plot(land_raster)
+```
+
+Loop through each taxa.
+```{r}
+taxas = c("carp", "catfish", "perch", "sturgeon", "tilapia", "trout", "bass")
+
+for(taxa in taxas){ # taxa = taxas[2]
+  
+    raster_states <- fasterize::fasterize(map_states, template, field=taxa)
+    raster_states[is.na(raster_states)] <- 0
+    raster_states <- raster_states * land_raster
+    writeRaster(raster_states, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/taxa_state_maps/%s.tif", taxa), overwrite=TRUE)
+}
+
+```
+
+Make maps that multiply the state/taxa maps by the current location of aquaculture maps (not taxa specific) and the cumulative pressure rasters for each taxa.
+
+```{r}
+
+# raster of state IDs
+state_id <- fasterize::fasterize(map_states, template, field="STATEFP")
+state_id <- rast(state_id)
+
+# get the general map describing, by county, the location of aquaculture
+county_aqua <- rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+county_aqua <- ifel(county_aqua >= 1, 1, 0)
+
+# loop through all the taxa:
+
+taxas = c("carp", "catfish", "perch", "sturgeon", "tilapia", "trout", "bass")
+
+for (taxa in taxas){ # taxa = taxas[1]
+  state_taxa <- rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/taxa_state_maps/%s.tif", taxa)) 
+  
+  pressure <- rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/current_ssp245_%s.tif", taxa))
+  
+# pressure2 <- rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/current_ssp585_%s.tif", taxa))
+  
+  pressure <- ifel(pressure <= 0.75, 1, 0)
+#  pressure2 <- ifel(pressure2 <= 0.75, 1, 0)
+#  plot(pressure - pressure2)
+    likely <- state_taxa * pressure * county_aqua
+  
+  modeled_obs <- zonal(likely, state_id, fun=sum, na.rm=TRUE) 
+  
+  modeled_obs <- as.data.frame(modeled_obs) %>%
+    rename(STATEFP = layer) %>%
+    mutate(value = ifelse(.[[taxa]]>0, 1, 0)) %>%
+    dplyr::select(STATEFP, value)
+
+ observed <- location  %>%
+    dplyr::select(STATEFP, State, any_of(taxa))
+
+ compare <- left_join(observed, modeled_obs, by="STATEFP") %>%  
+ filter(.data[[taxa]] == 1 & value == 0) %>%
+   dplyr::select(State) %>%
+   pull()
+ 
+ cat("For ", taxa, " = these states were missing: ", compare, "\n")
+
+ writeRaster(likely, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif", taxa), overwrite=TRUE)
+ 
+}
+
+```
+
+Make figures of where each taxa has the highest probability of being farmed.
+```{r}
+for(taxa in taxas){
+  png(sprintf(here("aquaculture_location/output/likely_location_%s.png"), taxa), width=800, height=600)
+plot(raster::raster(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif", taxa)), main=taxa, legend=FALSE)
+  dev.off()
+}
+```
+

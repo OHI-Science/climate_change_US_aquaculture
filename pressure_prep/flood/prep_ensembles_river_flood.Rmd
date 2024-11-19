@@ -1,0 +1,105 @@
+---
+title: "Prep flood ensemble model"
+output: html_document
+date: '2022-07-11'
+editor_options: 
+  chunk_output_type: console
+---
+
+These are 5 year return periods. Note: the website with these data added an extra zero after the rp (which is confusing).
+
+https://files.wri.org/d8/s3fs-public/aqueduct-floods-methodology.pdf
+Winsemius et al. (2016) argue in their supplementary materials that a bias correction on the climate scenarios is required because the input climate datasets
+are only bias-corrected based on daily statistics. They thus may still contain
+bias in the autocorrelation of rainfall in time, at both short and long (yearly) time
+scales, as demonstrated by Johnson et al. (2011). Therefore, an additional bias
+correction was required. In Winsemius et al. (2016), this bias correction was applied by using a model-model diference in flood risk rather than by applying a
+bias correction within the hazard simulations themselves before performing the
+hazard map downscaling procedure. For Aqueduct Floods, we performed an additive correction method within the space of the extreme value distributions of
+the flood volumes. The extreme volumes obtained from the run forced with the
+observation-based EUWATCH dataset (1960–99) were assumed as the presentday values, and their changes in future flood volumes were calculated, for all
+GCMs, from diferences between the values in future (RCP and GCM combination) and historical (GCM) conditions. The procedure to obtain corrected future
+volumes, “future corrected,” is summarized in the following equation:
+
+future_corrected = present_watch + (future_gcm - present_gcm)
+
+with the present_watch representing present-day values based on the
+EUWATCH run, and present_gcm and future_gcm indicating values obtained
+from GCM runs in historical (under present-day greenhouse gas concentration
+forcing) and future (for various RCP scenarios) simulation periods. 
+
+Aqueduct Floods now includes two hazard components,
+riverine and coastal foods. Both hazards are represented
+by global scale layers of inundation depth at 30″ × 30″
+resolution, with diferent layers representing inundation
+depths for diferent annual average probabilities of occurrence. The hazard layers have been simulated without
+considering the presence of food protection. Note that
+this does not mean that food protection is not included in
+our risk computation. Instead of including it in the computations of riverine and coastal food hazard, we include
+the efects of food protection in the risk calculations by
+assuming zero damage below the assumed standard of
+protection (see Section 6).
+
+Based on PCR-GLOBWB output,
+we then applied extreme value statistics to derive the
+foodplain water volumes per grid cell for several fooding
+return periods (2, 5, 10, 25, 50, 100, 250, 500, and 1,000 
+4 |
+years) for the current time (based on 1960–99 simulation)
+and future climate (2010–49, 2030–69, and 2060–99).
+These are then used as input to a volume spreading food
+model (Winsemius et al. 2013) to convert the 5′ × 5′ food
+volumes into maps of high-resolution inundation depth at
+a resolution of 30″ × 30″. We provide additional documentation on PCR-GLOBWB (version 2) and GLOFRIS
+model details, input data, and bias correction processes in
+Appendix A.1.1.
+for future conditions we used the Inter-sectoral Impact Model Intercomparison
+Project (ISI-MIP) forcing data (Hempel et al. 2013) for the periods 2030 (by running over the period 2010–49) and 2050 (by running over the period 2030–69),
+as well as 2080 (2060–99). Note that the exposure data for current conditions
+represent the situation in 2010 (not 1960–99). 
+
+Data from here: http://wri-projects.s3.amazonaws.com/AqueductFloodTool/download/v2/index.html
+```{r} 
+library(sp)
+library(raster)
+
+yr_list <- c("2030_rp00005.tif", "2050_rp00005.tif", "2080_rp00005.tif")
+
+```
+
+Do the rcp4p5 ones first:
+```{r}
+for (yr in yr_list){ #yr=yr_list[1]
+
+  rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/river_flood", pattern=yr, full=TRUE)
+   rasts <- grep("rcp4p5", rasts, value=TRUE)
+   
+  rast_stack <- raster::stack(rasts)
+  #plot(rast_stack[[1]])
+  num_rasts <- length(rasts)
+  cat(sprintf("analyzing %s, n = %s", yr, num_rasts))
+  calc(rast_stack, fun=mean, filename=sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp4p5_ensemble_%s", yr), overwrite=TRUE) }
+
+
+tmp <- raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp4p5_ensemble_2050_rp00005.tif")  
+ plot(area(tmp))
+```
+
+
+
+Do the rcp8p5 ones next:
+```{r}
+for (yr in yr_list){ #yr=yr_list[1]
+
+  rasts <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/flood/river_flood", pattern=yr, full=TRUE)
+  rasts <- grep("rcp8p5", rasts, value=TRUE)
+  rast_stack <- raster::stack(rasts)
+  #plot(rast_stack[[1]])
+  num_rasts <- length(rasts)
+  cat(sprintf("analyzing %s, n = %s", yr, num_rasts))
+  calc(rast_stack, fun=mean, filename=sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp8p5_ensemble_%s", yr), overwrite=TRUE) }
+
+
+tmp <- plot(raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/ensembles_river/inunriver_rcp8p5_2050_rp00005.tif"))  
+ 
+```

@@ -1,0 +1,630 @@
+---
+title: "Taxa biological pressures"
+output: html_document
+date: "2023-10-03"
+editor_options: 
+  chunk_output_type: console
+---
+This creates maps for each taxa for current and future projected biological pressures based on thermal tolerance of each taxa.
+```{r}
+library(terra)
+library(tidyverse)
+library(RColorBrewer)
+
+```
+
+```{r}
+US <- terra::rast(here("spatial/USA_raster.tif"))
+
+pressure_prep <- function(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/current_ssp245_no_taxa_specific.tif"){
+
+tmp_raster <- terra::rast(path)
+tmp_raster[is.na(tmp_raster)] <- 0
+tmp_raster <- tmp_raster*US
+tmp_raster
+}
+
+
+locs <- "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_yearly_crs/"
+
+#bass
+current_bass_ssp245 <- pressure_prep(path =  file.path(locs, "bass_Tavg_ssp245_2001-2020.tif"))
+current_bass_ssp585 <- pressure_prep(path =  file.path(locs, "bass_Tavg_ssp585_2001-2020.tif"))
+near_bass_ssp245 <- pressure_prep(path =  file.path(locs, "bass_Tavg_ssp245_2041-2060.tif"))
+near_bass_ssp585 <- pressure_prep(path =  file.path(locs, "bass_Tavg_ssp585_2041-2060.tif"))
+
+#carp
+current_carp_ssp245 <- pressure_prep(path =  file.path(locs, "carp_Tavg_ssp245_2001-2020.tif"))
+current_carp_ssp585 <- pressure_prep(path =  file.path(locs, "carp_Tavg_ssp585_2001-2020.tif"))
+near_carp_ssp245 <- pressure_prep(path =  file.path(locs, "carp_Tavg_ssp245_2041-2060.tif"))
+near_carp_ssp585 <- pressure_prep(path =  file.path(locs, "carp_Tavg_ssp585_2041-2060.tif"))
+
+#catfish
+current_catfish_ssp245 <- pressure_prep(path =  file.path(locs, "catfish_Tavg_ssp245_2001-2020.tif"))
+current_catfish_ssp585 <- pressure_prep(path =  file.path(locs, "catfish_Tavg_ssp585_2001-2020.tif"))
+near_catfish_ssp245 <- pressure_prep(path =  file.path(locs, "catfish_Tavg_ssp245_2041-2060.tif"))
+near_catfish_ssp585 <- pressure_prep(path =  file.path(locs, "catfish_Tavg_ssp585_2041-2060.tif"))
+
+#perch
+current_perch_ssp245 <- pressure_prep(path =  file.path(locs, "perch_Tavg_ssp245_2001-2020.tif"))
+current_perch_ssp585 <- pressure_prep(path =  file.path(locs, "perch_Tavg_ssp585_2001-2020.tif"))
+near_perch_ssp245 <- pressure_prep(path =  file.path(locs, "perch_Tavg_ssp245_2041-2060.tif"))
+near_perch_ssp585 <- pressure_prep(path =  file.path(locs, "perch_Tavg_ssp585_2041-2060.tif"))
+
+
+#sturgeon
+current_sturgeon_ssp245 <- pressure_prep(path =  file.path(locs, "sturgeon_Tavg_ssp245_2001-2020.tif"))
+current_sturgeon_ssp585 <- pressure_prep(path =  file.path(locs, "sturgeon_Tavg_ssp585_2001-2020.tif"))
+near_sturgeon_ssp245 <- pressure_prep(path =  file.path(locs, "sturgeon_Tavg_ssp245_2041-2060.tif"))
+near_sturgeon_ssp585 <- pressure_prep(path =  file.path(locs, "sturgeon_Tavg_ssp585_2041-2060.tif"))
+                      
+#tilapia
+current_tilapia_ssp245 <- pressure_prep(path =  file.path(locs, "tilapia_Tavg_ssp245_2001-2020.tif"))
+current_tilapia_ssp585 <- pressure_prep(path =  file.path(locs, "tilapia_Tavg_ssp585_2001-2020.tif"))
+near_tilapia_ssp245 <- pressure_prep(path =  file.path(locs, "tilapia_Tavg_ssp245_2041-2060.tif"))
+near_tilapia_ssp585 <- pressure_prep(path =  file.path(locs, "tilapia_Tavg_ssp585_2041-2060.tif"))
+
+#trout
+current_trout_ssp245 <- pressure_prep(path =  file.path(locs, "trout_Tavg_ssp245_2001-2020.tif"))
+current_trout_ssp585 <- pressure_prep(path =  file.path(locs, "trout_Tavg_ssp585_2001-2020.tif"))
+near_trout_ssp245 <- pressure_prep(path =  file.path(locs, "trout_Tavg_ssp245_2041-2060.tif"))
+near_trout_ssp585 <- pressure_prep(path =  file.path(locs, "trout_Tavg_ssp585_2041-2060.tif"))
+
+```
+
+```{r calculate differences}
+
+
+# the crit point is the maximum plotting value
+crit_min_plot <- -0.5
+crit_max_plot <- 0.5
+
+diff_function <- function(current_raster = cumulative_current_ssp245, future_raster = cumulative_near_ssp245,
+                          crit_min = crit_min_plot, crit_max = crit_max_plot){
+  
+  projected_change <- future_raster - current_raster
+  projected_change <- terra::ifel(projected_change > crit_max, crit_max, projected_change)
+  projected_change <- terra::ifel(projected_change < crit_min, crit_min, projected_change)
+}
+
+bass_dif_near_ssp245 <- diff_function(future_raster = near_bass_ssp245, current_raster = current_bass_ssp245)
+bass_dif_near_ssp585 <- diff_function(future_raster = near_bass_ssp585, current_raster = current_bass_ssp585)
+
+catfish_dif_near_ssp245 <- diff_function(future_raster = near_catfish_ssp245, current_raster = current_catfish_ssp245)
+catfish_dif_near_ssp585 <- diff_function(future_raster = near_catfish_ssp585, current_raster = current_catfish_ssp585)
+
+carp_dif_near_ssp245 <- diff_function(future_raster = near_carp_ssp245, current_raster = current_carp_ssp245)
+carp_dif_near_ssp585 <- diff_function(future_raster = near_carp_ssp585, current_raster = current_carp_ssp585)
+
+tilapia_dif_near_ssp245 <- diff_function(future_raster = near_tilapia_ssp245, current_raster = current_tilapia_ssp245)
+tilapia_dif_near_ssp585 <- diff_function(future_raster = near_tilapia_ssp585, current_raster = current_tilapia_ssp585)
+
+perch_dif_near_ssp245 <- diff_function(future_raster = near_perch_ssp245, current_raster = current_perch_ssp245)
+perch_dif_near_ssp585 <- diff_function(future_raster = near_perch_ssp585, current_raster = current_perch_ssp585)
+
+trout_dif_near_ssp245 <- diff_function(future_raster = near_trout_ssp245, current_raster = current_trout_ssp245)
+trout_dif_near_ssp585 <- diff_function(future_raster = near_trout_ssp585, current_raster = current_trout_ssp585)
+
+sturgeon_dif_near_ssp245 <- diff_function(future_raster = near_sturgeon_ssp245, current_raster = current_sturgeon_ssp245)
+sturgeon_dif_near_ssp585 <- diff_function(future_raster = near_sturgeon_ssp585, current_raster = current_sturgeon_ssp585)
+
+```
+
+```{r convert to points}
+#convert to points
+
+dataframe_convert <- function(r=wet_bulb_current_ssp245){
+  temp <- as.data.frame(r, xy=TRUE)
+  colnames(temp) <- c("x", "y", "value")
+  temp
+}
+
+pt_bass_current <- dataframe_convert(r=current_bass_ssp245)
+pt_bass_near_ssp245 <- dataframe_convert(bass_dif_near_ssp245)
+pt_bass_near_ssp585 <- dataframe_convert(bass_dif_near_ssp585)
+
+pt_catfish_current <- dataframe_convert(r=current_catfish_ssp245)
+pt_catfish_near_ssp245 <- dataframe_convert(catfish_dif_near_ssp245)
+pt_catfish_near_ssp585 <- dataframe_convert(catfish_dif_near_ssp585)
+
+pt_carp_current <- dataframe_convert(r=current_carp_ssp245)
+pt_carp_near_ssp245 <- dataframe_convert(carp_dif_near_ssp245)
+pt_carp_near_ssp585 <- dataframe_convert(carp_dif_near_ssp585)
+
+pt_tilapia_current <- dataframe_convert(r=current_tilapia_ssp245)
+pt_tilapia_near_ssp245 <- dataframe_convert(tilapia_dif_near_ssp245)
+pt_tilapia_near_ssp585 <- dataframe_convert(tilapia_dif_near_ssp585)
+
+pt_perch_current <- dataframe_convert(r=current_perch_ssp245)
+pt_perch_near_ssp245 <- dataframe_convert(perch_dif_near_ssp245)
+pt_perch_near_ssp585 <- dataframe_convert(perch_dif_near_ssp585)
+
+pt_trout_current <- dataframe_convert(r=current_trout_ssp245)
+pt_trout_near_ssp245 <- dataframe_convert(trout_dif_near_ssp245)
+pt_trout_near_ssp585 <- dataframe_convert(trout_dif_near_ssp585)
+
+pt_sturgeon_current <- dataframe_convert(r=current_sturgeon_ssp245)
+pt_sturgeon_near_ssp245 <- dataframe_convert(sturgeon_dif_near_ssp245)
+pt_sturgeon_near_ssp585 <- dataframe_convert(sturgeon_dif_near_ssp585)
+
+```
+
+# Get together plotting functions and such
+```{r make some maps- drought}
+
+## Get current color scheme
+library(RColorBrewer)
+current_cols <- c("#f0eada", brewer.pal("RdPu", n=9)[2:9])
+
+library(wesanderson)
+pal <- wes_palette("Zissou1")
+change_cols <- c("#3A9AB2", "#79B6C5", "#ABDDDE", "#f0eada", "#E1AF00", "#FA8400", "#972D14") 
+                 #"#F22300")
+
+#change_cols <- rev(brewer.pal("Spectral", n=11))
+
+## Get boundaries
+#install.packages("tigris")
+library(rnaturalearth)
+library(tigris)
+us_county <- st_read(here("spatial/state_county_shp/state_county_shp.shp"))
+
+us_outline <- ne_countries(country = "United States of America", returnclass = "sf", scale="large")
+us_outline <- st_transform(us_outline, terra::crs(trout_dif_near_ssp245))
+plot(us_outline$geometry)
+
+us_states <- ne_states(country = "United States of America", returnclass = "sf")
+us_states <- st_transform(us_states, terra::crs(trout_dif_near_ssp245))
+
+alaska <- us_states[us_states$name == "Alaska", ]
+plot(alaska$geometry)
+
+hawaii <- us_states[us_states$name == "Hawaii", ]
+plot(hawaii$geometry)
+
+## create functions for different plots
+
+
+## Combining mainland, Alaska and Hawaii
+M_A_H <- function(plot1, plot2, plot3) {
+combined <- ggdraw() +
+  draw_plot(plot1) +
+  draw_plot(plot2, width=0.35, height=0.40,  x = 0, y = 0)+
+  draw_plot(plot3,  width=0.2, height=0.3,  x = .3, y = .04)+
+  theme(panel.background = element_rect(fill = '#b9c9c9', color=NA, size = 0.5))
+combined
+}
+
+## Current pressures plot that can be generated for each taxa!
+current_plot <- function(taxa = "bass", habitat_only = FALSE){ #habitat_only = TRUE
+  
+  pt_current <- paste0("pt_", taxa, "_current")
+  
+   habitat <- terra::rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif", taxa))
+  habitat <- terra::ifel(habitat==0, 1, NA)
+  habitat_df <- dataframe_convert(habitat)
+ 
+  
+mainland <- ggplot() +
+ geom_tile(data = get(pt_current), aes(x = x, y = y, fill = value)) +
+      theme_classic()+ #ggtitle("   Current drought") + 
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-3250000, 2250000) + ylim(125000, 3300000) +
+  theme_void() + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5)   
+
+
+ alaska <- ggplot() +
+ geom_tile(data = get(pt_current) , aes(x = x, y = y, fill = value)) +
+  theme_classic() +
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-5000000, -2150000)+ylim(3900000, 6200000) +
+  theme_void() +
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+
+
+  hawaii <- ggplot() +
+ geom_tile(data = get(pt_current), aes(x = x, y = y, fill = value)) +
+  theme_classic() + 
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-6300000, -5950000) +
+  ylim(1500000, 2100000) +
+  theme_void() +
+  theme(legend.position = "none") + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha = 0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1))
+
+ if(habitat_only){
+  mainland <- mainland +
+    geom_tile(data = habitat_df, aes(x=x, y=y), fill="gray")+
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+
+     hawaii <- hawaii +
+    geom_tile(data = habitat_df, aes(x=x, y=y), fill="gray")+
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+     
+      alaska <- alaska +
+    geom_tile(data = habitat_df, aes(x=x, y=y), fill="gray")+
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+
+}
+  
+  
+return(list(mainland = mainland, alaska = alaska, hawaii = hawaii))
+  
+}
+
+
+## Change in pressures plot that can be generated for each taxa!
+change_plot <- function(taxa = "bass", ssp="ssp245", habitat_only = FALSE){
+  
+  pt_change <- paste0("pt_", taxa, "_near_", ssp)
+
+   habitat <- terra::rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif", taxa))
+  habitat <- terra::ifel(habitat==0, 1, NA)
+  habitat_df <- dataframe_convert(habitat)
+  
+  
+mainland <- ggplot() +
+ geom_tile(data = get(pt_change) , aes(x = x, y = y, fill = value)) +
+      theme_classic()+ #ggtitle("   Current drought") + 
+  scale_fill_gradientn(colours = change_cols, limit=c(crit_min_plot, crit_max_plot)) +
+  xlim(-3250000, 2250000) + ylim(125000, 3300000) +
+  theme_void() + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5)   
+
+
+ alaska <- ggplot() +
+ geom_tile(data = get(pt_change), aes(x = x, y = y, fill = value)) +
+  theme_classic() +
+ scale_fill_gradientn(colours = change_cols, limit=c(crit_min_plot, crit_max_plot)) +
+  xlim(-5000000, -2150000)+ylim(3900000, 6200000) +
+  theme_void() +
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1)) 
+ 
+
+   hawaii <- ggplot() +
+ geom_tile(data = get(pt_change), aes(x = x, y = y, fill = value)) +
+  theme_classic() + 
+ scale_fill_gradientn(colours = change_cols, limit=c(crit_min_plot, crit_max_plot)) +
+  xlim(-6300000, -5950000) +
+  ylim(1500000, 2100000) +
+  theme_void() +
+  theme(legend.position = "none") + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha = 0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1))
+ 
+  if(habitat_only){
+  mainland <- mainland +
+    geom_tile(data = habitat_df, aes(x=x, y=y), fill="gray")+
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+
+     hawaii <- hawaii +
+    geom_tile(data = habitat_df, aes(x=x, y=y), fill="gray")+
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+     
+      alaska <- alaska +
+    geom_tile(data = habitat_df, aes(x=x, y=y), fill="gray")+
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+
+}
+  
+    
+# combine mainland, alaska, hawaii
+return(list(mainland = mainland, alaska = alaska, hawaii = hawaii))
+
+}   
+
+
+```
+
+
+
+First do all US
+```{r}
+
+# bass
+bass_current_plots <- current_plot(taxa = "bass")
+bass_current <- M_A_H(bass_current_plots$mainland, bass_current_plots$alaska, bass_current_plots$hawaii)
+
+bass_near_ssp245_plots <- change_plot(taxa = "bass", ssp="ssp245")
+bass_near_ssp245 <- M_A_H(bass_near_ssp245_plots$mainland, bass_near_ssp245_plots$alaska, bass_near_ssp245_plots$hawaii)
+
+bass_near_ssp585_plots <- change_plot(taxa = "bass", ssp="ssp585")
+bass_near_ssp585 <- M_A_H(bass_near_ssp585_plots$mainland, bass_near_ssp585_plots$alaska, bass_near_ssp585_plots$hawaii)
+ 
+
+# catfish
+catfish_current_plots <- current_plot(taxa = "catfish")
+catfish_current <- M_A_H(catfish_current_plots$mainland, catfish_current_plots$alaska, catfish_current_plots$hawaii)
+
+catfish_near_ssp245_plots <- change_plot(taxa = "catfish", ssp="ssp245")
+catfish_near_ssp245 <- M_A_H(catfish_near_ssp245_plots$mainland, catfish_near_ssp245_plots$alaska, catfish_near_ssp245_plots$hawaii)
+
+catfish_near_ssp585_plots <- change_plot(taxa = "catfish", ssp="ssp585")
+catfish_near_ssp585 <- M_A_H(catfish_near_ssp585_plots$mainland, catfish_near_ssp585_plots$alaska, catfish_near_ssp585_plots$hawaii)
+ 
+# carp
+carp_current_plots <- current_plot(taxa = "carp")
+carp_current <- M_A_H(carp_current_plots$mainland, carp_current_plots$alaska, carp_current_plots$hawaii)
+
+carp_near_ssp245_plots <- change_plot(taxa = "carp", ssp="ssp245")
+carp_near_ssp245 <- M_A_H(carp_near_ssp245_plots$mainland, carp_near_ssp245_plots$alaska, carp_near_ssp245_plots$hawaii)
+
+carp_near_ssp585_plots <- change_plot(taxa = "carp", ssp="ssp585")
+carp_near_ssp585 <- M_A_H(carp_near_ssp585_plots$mainland, carp_near_ssp585_plots$alaska, carp_near_ssp585_plots$hawaii)
+ 
+# tilapia
+tilapia_current_plots <- current_plot(taxa = "tilapia")
+tilapia_current <- M_A_H(tilapia_current_plots$mainland, tilapia_current_plots$alaska, tilapia_current_plots$hawaii)
+
+tilapia_near_ssp245_plots <- change_plot(taxa = "tilapia", ssp="ssp245")
+tilapia_near_ssp245 <- M_A_H(tilapia_near_ssp245_plots$mainland, tilapia_near_ssp245_plots$alaska, tilapia_near_ssp245_plots$hawaii)
+
+tilapia_near_ssp585_plots <- change_plot(taxa = "tilapia", ssp="ssp585")
+tilapia_near_ssp585 <- M_A_H(tilapia_near_ssp585_plots$mainland, tilapia_near_ssp585_plots$alaska, tilapia_near_ssp585_plots$hawaii)
+ 
+
+# perch
+perch_current_plots <- current_plot(taxa = "perch")
+perch_current <- M_A_H(perch_current_plots$mainland, perch_current_plots$alaska, perch_current_plots$hawaii)
+
+perch_near_ssp245_plots <- change_plot(taxa = "perch", ssp="ssp245")
+perch_near_ssp245 <- M_A_H(perch_near_ssp245_plots$mainland, perch_near_ssp245_plots$alaska, perch_near_ssp245_plots$hawaii)
+
+perch_near_ssp585_plots <- change_plot(taxa = "perch", ssp="ssp585")
+perch_near_ssp585 <- M_A_H(perch_near_ssp585_plots$mainland, perch_near_ssp585_plots$alaska, perch_near_ssp585_plots$hawaii)
+ 
+
+# trout
+trout_current_plots <- current_plot(taxa = "trout")
+trout_current <- M_A_H(trout_current_plots$mainland, trout_current_plots$alaska, trout_current_plots$hawaii)
+
+trout_near_ssp245_plots <- change_plot(taxa = "trout", ssp="ssp245")
+trout_near_ssp245 <- M_A_H(trout_near_ssp245_plots$mainland, trout_near_ssp245_plots$alaska, trout_near_ssp245_plots$hawaii)
+
+trout_near_ssp585_plots <- change_plot(taxa = "trout", ssp="ssp585")
+trout_near_ssp585 <- M_A_H(trout_near_ssp585_plots$mainland, trout_near_ssp585_plots$alaska, trout_near_ssp585_plots$hawaii)
+
+# sturgeon
+sturgeon_current_plots <- current_plot(taxa = "sturgeon")
+sturgeon_current <- M_A_H(sturgeon_current_plots$mainland, sturgeon_current_plots$alaska, sturgeon_current_plots$hawaii)
+
+sturgeon_near_ssp245_plots <- change_plot(taxa = "sturgeon", ssp="ssp245")
+sturgeon_near_ssp245 <- M_A_H(sturgeon_near_ssp245_plots$mainland, sturgeon_near_ssp245_plots$alaska, sturgeon_near_ssp245_plots$hawaii)
+
+sturgeon_near_ssp585_plots <- change_plot(taxa = "sturgeon", ssp="ssp585")
+sturgeon_near_ssp585 <- M_A_H(sturgeon_near_ssp585_plots$mainland, sturgeon_near_ssp585_plots$alaska, sturgeon_near_ssp585_plots$hawaii)
+
+```
+
+
+Next do only their suspected ranges:
+```{r}
+
+# bass
+bass_current_plots_v2 <- current_plot(taxa = "bass", habitat_only = TRUE)
+bass_current_v2 <- M_A_H(bass_current_plots_v2$mainland, bass_current_plots_v2$alaska, bass_current_plots_v2$hawaii)
+
+bass_near_ssp245_plots_v2 <- change_plot(taxa = "bass", ssp="ssp245", habitat_only = TRUE)
+bass_near_ssp245_v2 <- M_A_H(bass_near_ssp245_plots_v2$mainland, bass_near_ssp245_plots_v2$alaska, bass_near_ssp245_plots_v2$hawaii)
+
+bass_near_ssp585_plots_v2 <- change_plot(taxa = "bass", ssp="ssp585", habitat_only = TRUE)
+bass_near_ssp585_v2 <- M_A_H(bass_near_ssp585_plots_v2$mainland, bass_near_ssp585_plots_v2$alaska, bass_near_ssp585_plots_v2$hawaii)
+ 
+
+# catfish
+catfish_current_plots_v2 <- current_plot(taxa = "catfish", habitat_only = TRUE)
+catfish_current_v2 <- M_A_H(catfish_current_plots_v2$mainland, catfish_current_plots_v2$alaska, catfish_current_plots_v2$hawaii)
+
+catfish_near_ssp245_plots_v2 <- change_plot(taxa = "catfish", ssp="ssp245", habitat_only = TRUE)
+catfish_near_ssp245_v2 <- M_A_H(catfish_near_ssp245_plots_v2$mainland, catfish_near_ssp245_plots_v2$alaska, catfish_near_ssp245_plots_v2$hawaii)
+
+catfish_near_ssp585_plots_v2 <- change_plot(taxa = "catfish", ssp="ssp585", habitat_only = TRUE)
+catfish_near_ssp585_v2 <- M_A_H(catfish_near_ssp585_plots_v2$mainland, catfish_near_ssp585_plots_v2$alaska, catfish_near_ssp585_plots_v2$hawaii)
+ 
+
+# carp
+carp_current_plots_v2 <- current_plot(taxa = "carp", habitat_only = TRUE)
+carp_current_v2 <- M_A_H(carp_current_plots_v2$mainland, carp_current_plots_v2$alaska, carp_current_plots_v2$hawaii)
+
+carp_near_ssp245_plots_v2 <- change_plot(taxa = "carp", ssp="ssp245", habitat_only = TRUE)
+carp_near_ssp245_v2 <- M_A_H(carp_near_ssp245_plots_v2$mainland, carp_near_ssp245_plots_v2$alaska, carp_near_ssp245_plots_v2$hawaii)
+
+carp_near_ssp585_plots_v2 <- change_plot(taxa = "carp", ssp="ssp585", habitat_only = TRUE)
+carp_near_ssp585_v2 <- M_A_H(carp_near_ssp585_plots_v2$mainland, carp_near_ssp585_plots_v2$alaska, carp_near_ssp585_plots_v2$hawaii)
+ 
+
+# tilapia
+tilapia_current_plots_v2 <- current_plot(taxa = "tilapia", habitat_only = TRUE)
+tilapia_current_v2 <- M_A_H(tilapia_current_plots_v2$mainland, tilapia_current_plots_v2$alaska, tilapia_current_plots_v2$hawaii)
+
+tilapia_near_ssp245_plots_v2 <- change_plot(taxa = "tilapia", ssp="ssp245", habitat_only = TRUE)
+tilapia_near_ssp245_v2 <- M_A_H(tilapia_near_ssp245_plots_v2$mainland, tilapia_near_ssp245_plots_v2$alaska, tilapia_near_ssp245_plots_v2$hawaii)
+
+tilapia_near_ssp585_plots_v2 <- change_plot(taxa = "tilapia", ssp="ssp585", habitat_only = TRUE)
+tilapia_near_ssp585_v2 <- M_A_H(tilapia_near_ssp585_plots_v2$mainland, tilapia_near_ssp585_plots_v2$alaska, tilapia_near_ssp585_plots_v2$hawaii)
+ 
+
+# perch
+perch_current_plots_v2 <- current_plot(taxa = "perch", habitat_only = TRUE)
+perch_current_v2 <- M_A_H(perch_current_plots_v2$mainland, perch_current_plots_v2$alaska, perch_current_plots_v2$hawaii)
+
+perch_near_ssp245_plots_v2 <- change_plot(taxa = "perch", ssp="ssp245", habitat_only = TRUE)
+perch_near_ssp245_v2 <- M_A_H(perch_near_ssp245_plots_v2$mainland, perch_near_ssp245_plots_v2$alaska, perch_near_ssp245_plots_v2$hawaii)
+
+perch_near_ssp585_plots_v2 <- change_plot(taxa = "perch", ssp="ssp585", habitat_only = TRUE)
+perch_near_ssp585_v2 <- M_A_H(perch_near_ssp585_plots_v2$mainland, perch_near_ssp585_plots_v2$alaska, perch_near_ssp585_plots_v2$hawaii)
+ 
+
+# trout
+trout_current_plots_v2 <- current_plot(taxa = "trout", habitat_only = TRUE)
+trout_current_v2 <- M_A_H(trout_current_plots_v2$mainland, trout_current_plots_v2$alaska, trout_current_plots_v2$hawaii)
+
+trout_near_ssp245_plots_v2 <- change_plot(taxa = "trout", ssp="ssp245", habitat_only = TRUE)
+trout_near_ssp245_v2 <- M_A_H(trout_near_ssp245_plots_v2$mainland, trout_near_ssp245_plots_v2$alaska, trout_near_ssp245_plots_v2$hawaii)
+
+trout_near_ssp585_plots_v2 <- change_plot(taxa = "trout", ssp="ssp585", habitat_only = TRUE)
+trout_near_ssp585_v2 <- M_A_H(trout_near_ssp585_plots_v2$mainland, trout_near_ssp585_plots_v2$alaska, trout_near_ssp585_plots_v2$hawaii)
+ 
+
+# sturgeon
+sturgeon_current_plots_v2 <- current_plot(taxa = "sturgeon", habitat_only = TRUE)
+sturgeon_current_v2 <- M_A_H(sturgeon_current_plots_v2$mainland, sturgeon_current_plots_v2$alaska, sturgeon_current_plots_v2$hawaii)
+
+sturgeon_near_ssp245_plots_v2 <- change_plot(taxa = "sturgeon", ssp="ssp245", habitat_only = TRUE)
+sturgeon_near_ssp245_v2 <- M_A_H(sturgeon_near_ssp245_plots_v2$mainland, sturgeon_near_ssp245_plots_v2$alaska, sturgeon_near_ssp245_plots_v2$hawaii)
+
+sturgeon_near_ssp585_plots_v2 <- change_plot(taxa = "sturgeon", ssp="ssp585", habitat_only = TRUE)
+sturgeon_near_ssp585_v2 <- M_A_H(sturgeon_near_ssp585_plots_v2$mainland, sturgeon_near_ssp585_plots_v2$alaska, sturgeon_near_ssp585_plots_v2$hawaii)
+ 
+
+```
+
+
+Put it all together
+```{r}
+
+current <- ggarrange(trout_current, NULL, tilapia_current, NULL, catfish_current, widths = c(1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp2_all <- ggarrange(trout_near_ssp245, NULL, tilapia_near_ssp245, NULL, 
+                      catfish_near_ssp245, widths = c(1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp2_farms <- ggarrange(trout_near_ssp245_v2, NULL, tilapia_near_ssp245_v2, NULL,
+                      catfish_near_ssp245_v2, widths = c(1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp5_all <- ggarrange(trout_near_ssp585, NULL, tilapia_near_ssp585, NULL, 
+                      catfish_near_ssp585, widths = c(1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp5_farms <- ggarrange(trout_near_ssp585_v2, NULL,  tilapia_near_ssp585_v2, NULL, 
+                      catfish_near_ssp585_v2, widths = c(1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp2 <- ggarrange(ssp2_farms, ssp2_all, nrow=2, common.legend = FALSE)
+ssp5 <- ggarrange(ssp5_farms, ssp5_all, nrow=2, common.legend = FALSE)
+
+
+pdf(file = here("figs/output/fig_3.pdf"), width = 8, height = 9)
+ggarrange(current, NULL, ssp2, NULL, ssp5, nrow=5, heights = c(1, 0.1, 2, 0.06, 2), common.legend=FALSE)
+dev.off()
+
+myplot <- ggarrange(current, NULL, ssp2, NULL, ssp5, nrow=5, heights = c(1, 0.1, 2, 0.06, 2), common.legend=FALSE)
+myplot
+ggsave("figs/output/fig_3.png", width=8, height=9, units="in")
+
+```
+
+
+Put the remaining taxa together for supplement:
+```{r}
+
+current <- ggarrange(bass_current, NULL, carp_current, NULL, perch_current, NULL, sturgeon_current, widths = c(1, 0.04, 1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp2_all <- ggarrange(bass_near_ssp245, NULL, carp_near_ssp245, NULL, 
+                      perch_near_ssp245, NULL, sturgeon_near_ssp245, widths = c(1, 0.04, 1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp2_farms <- ggarrange(bass_near_ssp245_v2, NULL, carp_near_ssp245_v2, NULL,
+                     perch_near_ssp245_v2, NULL, sturgeon_near_ssp245_v2, widths = c(1, 0.04, 1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp5_all <- ggarrange(bass_near_ssp585, NULL, carp_near_ssp585, NULL, 
+                      perch_near_ssp585, NULL, sturgeon_near_ssp585, widths = c(1, 0.04, 1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp5_farms <- ggarrange(bass_near_ssp585_v2, NULL,  carp_near_ssp585_v2, NULL, 
+                      perch_near_ssp585_v2, NULL, sturgeon_near_ssp585_v2, widths = c(1, 0.04, 1, 0.04, 1, 0.04, 1), nrow=1, common.legend=TRUE)
+
+ssp2 <- ggarrange(ssp2_farms, ssp2_all, nrow=2, common.legend = FALSE)
+ssp5 <- ggarrange(ssp5_farms, ssp5_all, nrow=2, common.legend = FALSE)
+
+
+# pdf(file = here("figs/output/fig_S1_new.pdf"), width = 8, height = 9)
+# ggarrange(current, NULL, ssp2, NULL, ssp5, nrow=5, heights = c(1, 0.1, 2, 0.06, 2), common.legend=FALSE)
+# dev.off()
+
+myplot <- ggarrange(current, NULL, ssp2, NULL, ssp5, nrow=5, heights = c(1, 0.1, 2, 0.06, 2), common.legend=FALSE)
+myplot
+ggsave("figs/output/fig_S1.png", width=7, height=8, units="in")
+
+```
+
+
+
+
+
+OLD PLOTS BELOW, delete after we confirm we like the new idea!
+
+
+
+
+
+
+function to make a 1 x 3 plot for each taxa of current and near-future projections for ssp2 and ssp5
+```{r}
+
+taxon_plot <- function(taxon){ #taxon = "carp"
+
+## plot function start
+taxa_plot_function <- function(rasterfile){ #rasterfile = current_raster_pt
+  ggplot() +
+ geom_tile(data = rasterfile, aes(x = x, y = y, fill = value)) +
+ theme_classic() +
+ scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+ xlim(-4000000, 3000000) + ylim(100000, 6200000) +
+ theme_void() + 
+ theme(legend.position = "none",
+       panel.border = element_rect(fill = NA, color = "lightgray", size = 2)) + # This line adds the border
+ geom_sf(data=us_outline, fill=NA, color = "darkgray", size=2)
+}
+## plot function end  
+  
+# current plot
+current <- sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_yearly_crs/%s_Tavg_ssp245_2001-2020.tif", taxon)
+current_raster <- terra::rast(current) 
+current_raster <- terra::ifel(is.na(current_raster), 0, current_raster) * US
+current_raster_pt <- as.data.frame(current_raster, xy=TRUE)
+colnames(current_raster_pt) <- c("x", "y", "value")
+
+current_plot <- taxa_plot_function(current_raster_pt)
+
+# ssp2 plot
+ssp2 <- sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_yearly_crs/%s_Tavg_ssp245_2041-2060.tif", taxon)
+ssp2_raster <- terra::rast(ssp2)
+ssp2_raster <- terra::ifel(is.na(ssp2_raster), 0, ssp2_raster) * US
+ssp2_raster_pt <- as.data.frame(ssp2_raster, xy=TRUE)
+colnames(ssp2_raster_pt) <- c("x", "y", "value")
+
+ssp2_plot <- taxa_plot_function(ssp2_raster_pt)
+
+# ssp5 plot
+ssp5 <- sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_yearly_crs/%s_Tavg_ssp585_2041-2060.tif", taxon)
+ssp5_raster <- terra::rast(ssp5)
+ssp5_raster <- terra::ifel(is.na(ssp5_raster), 0, ssp5_raster) * US
+ssp5_raster_pt <- as.data.frame(ssp5_raster, xy=TRUE)
+colnames(ssp5_raster_pt) <- c("x", "y", "value")
+
+ssp5_plot <- taxa_plot_function(ssp5_raster_pt)
+
+ggarrange(current_plot, ssp2_plot, ssp5_plot, nrow=1)
+
+}
+
+```
+
+Make plots for each taxa
+```{r}
+bass_plot <- taxon_plot("bass")
+carp_plot <- taxon_plot("carp")
+catfish_plot <- taxon_plot("catfish")
+perch_plot <- taxon_plot("perch")
+sturgeon_plot <- taxon_plot("sturgeon")
+tilapia_plot <- taxon_plot("tilapia")
+trout_plot <- taxon_plot("trout")
+
+myplot <- ggarrange(NULL, bass_plot, NULL, catfish_plot, NULL, carp_plot, NULL, tilapia_plot, NULL, trout_plot, NULL, perch_plot, NULL, sturgeon_plot, nrow=14, common.legend = TRUE, heights=c(0.2, 1, 0.02, 1, 0.02, 1, 0.02, 1, 0.02, 1, 0.02, 1, 0.02, 1))
+myplot
+ggsave("figs/output/fig_S1.png", width=3.5, height=8, units="in")

@@ -1,0 +1,9 @@
+presence,variable,value,yr_scen,taxa
+0,wb_ssp585_2041-2060,0.08594916480854714,near-future_ssp585,sturgeon
+0,CMD_ssp585_2041-2060,0.10673004756575226,near-future_ssp585,sturgeon
+0,inuncoast_rcp8p5_wtsub_2030_rp0005_0,0.0012349013534987388,near-future_ssp585,sturgeon
+0,species_Tavg_ssp585_2041-2060,0.9949276019085052,near-future_ssp585,sturgeon
+1,wb_ssp585_2041-2060,0.012583573458789228,near-future_ssp585,sturgeon
+1,CMD_ssp585_2041-2060,0.24859257418685274,near-future_ssp585,sturgeon
+1,inuncoast_rcp8p5_wtsub_2030_rp0005_0,0.0031439959254458373,near-future_ssp585,sturgeon
+1,species_Tavg_ssp585_2041-2060,0.7046527901941947,near-future_ssp585,sturgeon

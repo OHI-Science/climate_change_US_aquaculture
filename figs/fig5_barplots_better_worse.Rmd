@@ -1,0 +1,479 @@
+---
+title: "Figure 5"
+author: "MRF"
+date: "2022-08-17"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Creates barplots showing proportion of US areas getting better or worse for aquaculture of each taxa. Another barplot is created showing the average pressures.
+```{r some libraries}
+
+library(USAboundaries)
+library(ggplot2)
+library(cowplot)
+library(ggpubr)
+library(here)
+library(sf)
+library(tidyverse)
+
+```
+
+```{r read in data}
+
+US <- terra::rast(here("spatial/USA_raster.tif"))
+
+pressure_prep <- function(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/current_ssp245_no_taxa_specific.tif"){
+
+tmp_raster <- terra::rast(path)
+tmp_raster[is.na(tmp_raster)] <- 0
+tmp_raster <- tmp_raster*US
+tmp_raster
+}
+
+
+locs <- "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/"
+
+#bass
+current_bass_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_bass.tif"))
+current_bass_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp585_bass.tif"))
+near_bass_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_bass.tif"))
+near_bass_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_bass.tif"))
+
+#carp
+current_carp_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_carp.tif"))
+current_carp_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp585_carp.tif"))
+near_carp_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_carp.tif"))
+near_carp_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_carp.tif"))
+
+#catfish
+current_catfish_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_catfish.tif"))
+current_catfish_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp585_catfish.tif"))
+near_catfish_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_catfish.tif"))
+near_catfish_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_catfish.tif"))
+
+#perch
+current_perch_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_perch.tif"))
+current_perch_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp585_perch.tif"))
+near_perch_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_perch.tif"))
+near_perch_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_perch.tif"))
+
+#sturgeon
+current_sturgeon_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_sturgeon.tif"))
+current_sturgeon_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp585_sturgeon.tif"))
+near_sturgeon_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_sturgeon.tif"))
+near_sturgeon_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_sturgeon.tif"))                                  
+#tilapia
+current_tilapia_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_tilapia.tif"))
+current_tilapia_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp585_tilapia.tif"))
+near_tilapia_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_tilapia.tif"))
+near_tilapia_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_tilapia.tif"))
+
+#trout
+current_trout_ssp245 <- pressure_prep(path =  file.path(locs, "current_ssp245_trout.tif"))
+current_trout_ssp585 <- pressure_prep(path =  file.path(locs, "current_ssp245_trout.tif"))
+near_trout_ssp245 <- pressure_prep(path =  file.path(locs, "near-future_ssp245_trout.tif"))
+near_trout_ssp585 <- pressure_prep(path =  file.path(locs, "near-future_ssp585_trout.tif"))
+
+```
+
+
+# Making barplots describing change in pressures
+
+## All area in the US
+```{r}
+
+taxa <- "carp"
+scenario <- "ssp245"
+
+change_summary <- function(taxa, scenario){
+current <- get(sprintf("current_%s_%s", taxa, scenario))
+projection <- get(sprintf("near_%s_%s", taxa, scenario))
+
+unsuitable_tmp <- terra::ifel(current==1 & projection == 1, 1, NA)
+unsuitable <- terra::global(unsuitable_tmp, "sum", na.rm=TRUE)
+unsuitable <- unsuitable[1,1]
+
+difference <- projection - current
+difference_buffer <- terra::ifel(difference >= -0.01 & difference <= 0.01, 0, difference)
+
+same_tmp <- terra::ifel(difference_buffer == 0, 1, NA)
+same <- terra::global(same_tmp, "sum", na.rm=TRUE) - unsuitable
+same <- same[1,1]
+
+worse_tmp <- terra::ifel(difference_buffer > 0, 1, NA)
+worse <- terra::global(worse_tmp, "sum", na.rm=TRUE)
+worse <- worse[1,1]
+
+better_tmp <- terra::ifel(difference_buffer < 0, 1, NA)
+better <- terra::global(better_tmp, "sum", na.rm=TRUE)
+better <- better[1,1]
+
+data_tmp <- data.frame(taxa = taxa, scenario = scenario, variable = c("unsuitable", "same", "worse", "better"),
+                       value = c(unsuitable, same, worse, better))
+
+data_tmp
+}
+
+bass_ssp245_summary <- change_summary("bass", "ssp245") 
+bass_ssp585_summary <- change_summary("bass", "ssp585") 
+
+catfish_ssp245_summary <- change_summary("catfish", "ssp245") 
+catfish_ssp585_summary <- change_summary("catfish", "ssp585") 
+
+carp_ssp245_summary <- change_summary("carp", "ssp245") 
+carp_ssp585_summary <- change_summary("carp", "ssp585") 
+
+tilapia_ssp245_summary <- change_summary("tilapia", "ssp245") 
+tilapia_ssp585_summary <- change_summary("tilapia", "ssp585") 
+
+perch_ssp245_summary <- change_summary("perch", "ssp245") 
+perch_ssp585_summary <- change_summary("perch", "ssp585") 
+
+trout_ssp245_summary <- change_summary("trout", "ssp245") 
+trout_ssp585_summary <- change_summary("trout", "ssp585") 
+
+sturgeon_ssp245_summary <- change_summary("sturgeon", "ssp245") 
+sturgeon_ssp585_summary <- change_summary("sturgeon", "ssp585") 
+
+taxa_summary <- rbind(bass_ssp245_summary, bass_ssp585_summary, 
+                      catfish_ssp245_summary, catfish_ssp585_summary,
+                      carp_ssp245_summary, carp_ssp585_summary,
+                      tilapia_ssp245_summary, tilapia_ssp585_summary,
+                      perch_ssp245_summary, perch_ssp585_summary,
+                      trout_ssp245_summary, trout_ssp585_summary,
+                      sturgeon_ssp245_summary, sturgeon_ssp585_summary)
+
+taxa_summary_props <- taxa_summary %>%
+  group_by(taxa, scenario) %>%
+  mutate(total = sum(value)) %>%
+  dplyr::ungroup() %>%
+  mutate(prop = value/total) %>%
+  mutate(percent = prop*100)
+
+order_variable <- c("unsuitable", "better", "same", "worse")
+order_taxa <- c("carp", "catfish", "bass", "tilapia", "trout", "perch", "sturgeon")
+
+taxa_summary_props <- taxa_summary_props %>%
+  mutate(variable = factor(taxa_summary_props$variable, levels = order_variable)) %>%
+  mutate(taxa = factor(taxa_summary_props$taxa, levels = order_taxa))
+  
+write_csv(taxa_summary_props, here("figs/output/pressure_change_all_us.csv"))
+# Create a stacked bar plot
+
+
+avg_pressure <- function(taxa, scenario){
+current <- get(sprintf("current_%s_%s", taxa, scenario))
+projection <- get(sprintf("near_%s_%s", taxa, scenario))
+
+unsuitable_tmp <- terra::ifel(current==1 & projection == 1, 1, NA)
+unsuitable <- terra::global(unsuitable_tmp, "sum", na.rm=TRUE)
+unsuitable <- unsuitable[1,1]
+
+difference <- projection - current
+difference_buffer <- terra::ifel(difference >= -0.01 & difference <= 0.01, 0, difference)
+
+same_tmp <- terra::ifel(difference_buffer == 0, 1, NA)
+same <- terra::global(same_tmp, "sum", na.rm=TRUE) - unsuitable
+same <- same[1,1]
+
+worse_tmp <- terra::ifel(difference_buffer > 0, 1, NA)
+worse <- terra::global(worse_tmp, "sum", na.rm=TRUE)
+worse <- worse[1,1]
+
+better_tmp <- terra::ifel(difference_buffer < 0, 1, NA)
+better <- terra::global(better_tmp, "sum", na.rm=TRUE)
+better <- better[1,1]
+
+data_tmp <- data.frame(taxa = taxa, scenario = scenario, variable = c("unsuitable", "same", "worse", "better"),
+                       value = c(unsuitable, same, worse, better))
+
+data_tmp
+}
+
+
+
+library(envalysis) # for theme
+
+ssp2_all <- ggplot(dplyr::filter(taxa_summary_props, scenario=="ssp245"), aes(x = taxa, y = prop, fill = variable)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+  labs(x = "Taxa", y = "Proportion") +
+  scale_fill_manual(values = c("worse" = "#CF5F11", 
+                               "better" = "#74B3C3", 
+                               "same" = "#ded8c8", 
+                               "unsuitable" = "#846D86")) +
+  labs(title = "",
+       y = "",
+       x = "")  + 
+  theme_publish() +
+  theme(legend.title = element_blank(), legend.position = "none")
+
+
+ssp5_all <- ggplot(dplyr::filter(taxa_summary_props, scenario=="ssp585"), aes(x = taxa, y = prop, fill = variable)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+  labs(x = "Taxa", y = "Proportion") +
+  scale_fill_manual(values = c("worse" = "#CF5F11", 
+                               "better" = "#74B3C3", 
+                               "same" = "#ded8c8", 
+                               "unsuitable" = "#846D86")) +
+  labs(title = "",
+       y = "",
+       x = "")  + 
+  theme_publish() +
+  theme(legend.title = element_blank(), legend.position = "none", axis.text.y=element_blank())
+
+all_us <- ggarrange(ssp2_all, ssp5_all, nrow=1)
+
+get_legend <- ggarrange(ssp2_all, ssp5_all, nrow=1, common.legend = TRUE)
+
+```
+
+average pressure plot
+
+```{r}
+
+all_stock <- c("current_bass_ssp245", "current_carp_ssp245",
+                                     "current_catfish_ssp245", "current_perch_ssp245",
+                                     "current_sturgeon_ssp245", "current_tilapia_ssp245",
+                                     "current_trout_ssp245",
+                                     "near_bass_ssp245", "near_carp_ssp245", 
+                                     "near_catfish_ssp245", "near_perch_ssp245",
+                                     "near_sturgeon_ssp245", "near_tilapia_ssp245",
+                                     "near_trout_ssp245", 
+                                     "near_bass_ssp585", "near_carp_ssp585", 
+                                     "near_catfish_ssp585", "near_perch_ssp585",
+                                     "near_sturgeon_ssp585", "near_tilapia_ssp585",
+                                     "near_trout_ssp585")
+
+all_usa_average_stack <- lapply(all_stock, get)
+all_usa_average_stack <- do.call(c, all_usa_average_stack)
+
+all_usa_average <- terra::global(all_usa_average_stack, "mean", na.rm=TRUE) %>%
+  data.frame()
+
+all_usa_average$category <- all_stock
+all_usa_average <- all_usa_average %>%
+  separate(category, into = c("time", "taxa", "scenario"), sep="_") %>%
+  mutate(scenario = ifelse(time=="current", "current", scenario)) 
+
+order_scenario <- rev(c("current", "ssp245", "ssp585"))
+order_taxa <- c("carp", "catfish", "bass", "tilapia", "trout", "perch", "sturgeon")
+
+all_usa_average <- all_usa_average %>%
+  mutate(scenario = factor(all_usa_average$scenario, levels = order_scenario)) %>%
+  mutate(taxa = factor(all_usa_average$taxa, levels = order_taxa))
+
+all_average_plot <- ggplot(all_usa_average, aes(x = taxa, y = mean, fill = scenario, group = scenario)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(y = "", x = "", fill = "", title = "") +
+  scale_fill_manual(values = c("current" = "#D3D1BF", 
+                               "ssp245" = "#C28E4F", 
+                               "ssp585" = "#9A3457")) +
+
+  theme_publish() +
+  theme(legend.title = element_blank(), legend.position = "none", axis.text.y=element_blank())
+
+all_us <- ggarrange(ssp2_all, ssp5_all, all_average_plot, nrow=1, widths = c(1.2,1, 1))
+```
+
+
+## Only areas they have a high probability of being farmed
+```{r}
+
+taxa <- "sturgeon"
+scenario <- "ssp245"
+
+change_summary <- function(taxa, scenario){
+  
+habitat <- terra::rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif", taxa))
+  habitat <- terra::ifel(habitat==1, 1, NA)
+
+current <- get(sprintf("current_%s_%s", taxa, scenario))*habitat
+projection <- get(sprintf("near_%s_%s", taxa, scenario))*habitat
+
+difference <- projection - current
+difference_buffer <- terra::ifel(difference >= -0.01 & difference <= 0.01, 0, difference)
+
+same <- terra::ifel(difference_buffer == 0, 1, NA)
+same <- terra::global(same, "sum", na.rm=TRUE)
+same <- same[1,1]
+
+worse_tmp <- terra::ifel(difference_buffer > 0, 1, NA)
+worse <- terra::global(worse_tmp, "sum", na.rm=TRUE)
+worse <- worse[1,1]
+
+better_tmp <- terra::ifel(difference_buffer < 0, 1, NA)
+better <- terra::global(better_tmp, "sum", na.rm=TRUE)
+better <- better[1,1]
+
+data_tmp <- data.frame(taxa = taxa, scenario = scenario, variable = c("same", "worse", "better"),
+                       value = c(same, worse, better))
+
+data_tmp
+}
+
+bass_ssp245_summary <- change_summary("bass", "ssp245") 
+bass_ssp585_summary <- change_summary("bass", "ssp585") 
+
+catfish_ssp245_summary <- change_summary("catfish", "ssp245") 
+catfish_ssp585_summary <- change_summary("catfish", "ssp585") 
+
+carp_ssp245_summary <- change_summary("carp", "ssp245") 
+carp_ssp585_summary <- change_summary("carp", "ssp585") 
+
+tilapia_ssp245_summary <- change_summary("tilapia", "ssp245") 
+tilapia_ssp585_summary <- change_summary("tilapia", "ssp585") 
+
+perch_ssp245_summary <- change_summary("perch", "ssp245") 
+perch_ssp585_summary <- change_summary("perch", "ssp585") 
+
+trout_ssp245_summary <- change_summary("trout", "ssp245") 
+trout_ssp585_summary <- change_summary("trout", "ssp585") 
+
+sturgeon_ssp245_summary <- change_summary("sturgeon", "ssp245") 
+sturgeon_ssp585_summary <- change_summary("sturgeon", "ssp585") 
+
+taxa_summary <- rbind(bass_ssp245_summary, bass_ssp585_summary, 
+                      catfish_ssp245_summary, catfish_ssp585_summary,
+                      carp_ssp245_summary, carp_ssp585_summary,
+                      tilapia_ssp245_summary, tilapia_ssp585_summary,
+                      perch_ssp245_summary, perch_ssp585_summary,
+                      trout_ssp245_summary, trout_ssp585_summary,
+                      sturgeon_ssp245_summary, sturgeon_ssp585_summary)
+
+taxa_summary_props2 <- taxa_summary %>%
+  group_by(taxa, scenario) %>%
+  mutate(total = sum(value)) %>%
+  dplyr::ungroup() %>%
+  mutate(prop = value/total) %>%
+  mutate(percent = prop*100)
+
+order_variable <- c("unsuitable", "better", "same", "worse")
+order_taxa <- c("carp", "catfish", "bass", "tilapia", "trout", "perch", "sturgeon")
+
+taxa_summary_props2 <- taxa_summary_props2 %>%
+  mutate(variable = factor(taxa_summary_props2$variable, levels = order_variable)) %>%
+  mutate(taxa = factor(taxa_summary_props2$taxa, levels = order_taxa))
+  
+#write_csv(taxa_summary_props2, here("figs/output/pressure_change_probable_areas.csv"))
+
+
+# Create a stacked bar plot
+
+ssp2_probable <- ggplot(dplyr::filter(taxa_summary_props2, scenario=="ssp245"), aes(x = taxa, y = prop, fill = variable)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+  labs(x = "Taxa", y = "Proportion") +
+  scale_fill_manual(values = c("worse" = "#CF5F11", 
+                               "better" = "#74B3C3", 
+                               "same" = "#ded8c8", 
+                               "unsuitable" = "#846D86")) +
+  labs(title = " SSP 2",
+       y = "",
+       x = "")  + 
+  theme_publish() +
+  theme(legend.title = element_blank(), legend.position = "none")
+
+
+ssp5_probable <- ggplot(dplyr::filter(taxa_summary_props2, scenario=="ssp585"), aes(x = taxa, y = prop, fill = variable)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+  labs(x = "Taxa", y = "Proportion") +
+  scale_fill_manual(values = c("worse" = "#CF5F11", 
+                               "better" = "#74B3C3", 
+                               "same" = "#ded8c8", 
+                               "unsuitable" = "#846D86")) +
+  labs(title = " SSP 5",
+       y = "",
+       x = "")  + 
+  theme_publish() +
+  theme(legend.title = element_blank(), legend.position = "none", axis.text.y=element_blank())
+
+
+
+```
+
+
+average pressure plot
+
+```{r}
+
+
+farm_rast_prep <- function(taxa){#taxa = "bass"
+  farm_rasts <- "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif"
+  presence_absence_raster <- terra::rast(sprintf(farm_rasts, taxa))
+  presence_absence_raster <- terra::ifel(presence_absence_raster==0, NA, presence_absence_raster)
+  presence_absence_raster
+}
+
+farm_area_average_stack <- c(current_bass_ssp245 * farm_rast_prep("bass"), 
+                current_carp_ssp245 * farm_rast_prep("carp"),
+                current_catfish_ssp245 * farm_rast_prep("catfish"), 
+                current_perch_ssp245 * farm_rast_prep("perch"),
+                current_sturgeon_ssp245 * farm_rast_prep("sturgeon"), 
+                current_tilapia_ssp245 * farm_rast_prep("tilapia"),
+                current_trout_ssp245 * farm_rast_prep("trout"),
+                near_bass_ssp245 * farm_rast_prep("bass"), 
+                near_carp_ssp245 * farm_rast_prep("carp"),
+                near_catfish_ssp245 * farm_rast_prep("catfish"), 
+                near_perch_ssp245 * farm_rast_prep("perch"),
+                near_sturgeon_ssp245 * farm_rast_prep("sturgeon"), 
+                near_tilapia_ssp245 * farm_rast_prep("tilapia"),
+                near_trout_ssp245 * farm_rast_prep("trout"),
+                near_bass_ssp585 * farm_rast_prep("bass"), 
+                near_carp_ssp585 * farm_rast_prep("carp"),
+                near_catfish_ssp585 * farm_rast_prep("catfish"), 
+                near_perch_ssp585 * farm_rast_prep("perch"),
+                near_sturgeon_ssp585 * farm_rast_prep("sturgeon"), 
+                near_tilapia_ssp585 * farm_rast_prep("tilapia"),
+                near_trout_ssp585 * farm_rast_prep("trout"))
+  
+
+
+farm_area_average <- terra::global(farm_area_average_stack, "mean", na.rm=TRUE) %>%
+  data.frame()
+
+farm_area_average$category <- all_stock
+farm_area_average <- farm_area_average %>%
+  separate(category, into = c("time", "taxa", "scenario"), sep="_") %>%
+  mutate(scenario = ifelse(time=="current", "current", scenario)) 
+
+write_csv(farm_area_average, here("figs/output/average_pressures.csv"))
+order_scenario <- rev(c("current", "ssp245", "ssp585"))
+order_taxa <- c("carp", "catfish", "bass", "tilapia", "trout", "perch", "sturgeon")
+
+farm_area_average <- farm_area_average %>%
+  mutate(scenario = factor(farm_area_average$scenario, levels = order_scenario)) %>%
+  mutate(taxa = factor(farm_area_average$taxa, levels = order_taxa))
+
+
+p <- ggplot(farm_area_average, aes(x = taxa, y = mean, fill = scenario, group = scenario)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(y = "", x = "", fill = "", title = "Average pressure") +
+  scale_fill_manual(values = c("current" = "#D3D1BF", 
+                               "ssp245" = "#C28E4F", 
+                               "ssp585" = "#9A3457")) +
+   scale_y_continuous(limits = c(0, 1)) + 
+  theme_publish() +
+  theme(legend.title = element_blank(), legend.position = "none", axis.text.y=element_blank())
+
+probable <- ggarrange(ssp2_probable, ssp5_probable, p, nrow=1, widths = c(1.2, 1, 1))
+
+ ggarrange(probable, NULL,  
+                  all_us, nrow=3,  heights = c(1, 0.1, 1))
+ggsave("figs/output/fig5.png", height=6, width=8, units="in")
+
+
+all_usa_average$area <- "all US"
+farm_area_average$area <- "farm locations"
+all_average_pressures <- rbind(all_usa_average, farm_area_average)
+
+write_csv(all_average_pressures, here("figs/output/average_pressures.csv"))
+
+```
+

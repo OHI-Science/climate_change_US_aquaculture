@@ -1,0 +1,9 @@
+presence,variable,value,yr_scen,taxa
+0,wb_ssp585_2081-2100,0.19794737180331154,distant-future_ssp585,tilapia
+0,CMD_ssp585_2081-2100,0.1423078343289301,distant-future_ssp585,tilapia
+0,inuncoast_rcp8p5_wtsub_2080_rp0005_0,0.0019389408144084028,distant-future_ssp585,tilapia
+0,species_Tavg_ssp585_2081-2100,0.30063983582710613,distant-future_ssp585,tilapia
+1,wb_ssp585_2081-2100,0.47084894643577446,distant-future_ssp585,tilapia
+1,CMD_ssp585_2081-2100,0.16081079894078928,distant-future_ssp585,tilapia
+1,inuncoast_rcp8p5_wtsub_2080_rp0005_0,0.004224170409238706,distant-future_ssp585,tilapia
+1,species_Tavg_ssp585_2081-2100,2.604863268498642e-5,distant-future_ssp585,tilapia

@@ -1,0 +1,210 @@
+---
+title: "Figure: change in average pressures barplot"
+output: html_document
+date: "2023-09-11"
+editor_options: 
+  chunk_output_type: console
+---
+Be sure to run step0 before doing this!
+
+Determine mean pressure (for each individual pressure) for each taxa in its high probability location:
+
+```{r setup, include=FALSE}
+library(here)
+library(terra)
+library(tidyverse)
+library(sf)
+library(raster)
+
+#raster template
+template <- raster()
+template <- raster(xmn=-6500000, xmx=2500000, ymn=100000, ymx=6200000)
+
+crs(template) <- CRS('+init=EPSG:5070')
+res(template) <- 5000
+
+#writeRaster(template, here("spatial/template.tif"))
+```
+
+```{r}
+list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_yearly_crs")
+
+combos <- read_csv(here("pressure_calcs/filepaths_for_pressure_combos.csv"), na="NA")
+
+#list of taxa we will evaluate
+taxa <- c("trout", "tilapia", "carp", "catfish", "sturgeon", "bass", "perch")
+
+```
+list of scenario years we want to run (pressures for each category will be combined):
+```{r}
+
+yr_scens <- unique(combos$year_scenario)
+yr_scens <- yr_scens[!is.na(yr_scens )]
+
+table(combos$year_scenario) # check that all have 4 layers!
+
+```
+
+```{r}
+
+for(yr_scen in yr_scens){
+#yr_scen = yr_scens[5]
+
+for(taxon in taxa){ # taxon="trout"
+  
+taxa_location <- rast(sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/estimated_farm_locations/%s.tif", taxon))  
+  
+rast_paths <- filter(combos, year_scenario %in% yr_scen) %>%
+  mutate(file_name = ifelse(pressure == "tmp_taxa", paste0(taxon, file_name), file_name)) %>%
+  mutate(path = sprintf("%s/%s.tif", file_path, file_name)) %>%
+  pull(path)
+
+rast_stack <- rast(rast_paths)
+
+taxa_summary <- terra::zonal(rast_stack, taxa_location, fun="mean", na.rm=TRUE) %>%
+rename_with(~ gsub(taxon, "species", .)) %>%
+  pivot_longer(cols = -species, 
+               names_to = "variable", 
+               values_to = "value") %>%
+  rename(presence = species)
+
+taxa_summary$yr_scen <- yr_scen
+taxa_summary$taxa <- taxon
+
+write_csv(taxa_summary, sprintf("figs/pressure_by_taxa_scenario_datasets/%s_%s.csv", taxon, yr_scen))
+
+cat("finished ", taxon, " : ", yr_scen, ", with N rasters = ", dim(rast_stack)[3], "\n")
+
+}
+}
+```
+
+
+Combine each taxa file into a single dataset and clean the data.
+```{r}
+
+files_list <- list.files("figs/pressure_by_taxa_scenario_datasets/", full=TRUE)
+
+combined_data <- files_list %>%
+  set_names() %>%
+  map_df(~read_csv(.))
+
+combined_data2 <- combined_data %>%
+  mutate(variable = str_replace(variable, "^wb_.*", "wet bulb"),
+         variable = str_replace(variable, "^inuncoast_.*", "flood"),
+         variable = str_replace(variable, "^CMD_.*", "water limitation"),
+         variable = str_replace(variable, "^species_.*", "temperature")) %>%
+     #    taxa = str_replace(taxa, "bass", "large mouth bass"),
+      #   taxa = str_replace(taxa, "trout", "trout spp.")) %>%
+  filter(presence == 1) %>%
+  dplyr::select(-presence)  %>%
+  separate(yr_scen, into=c("time", "scenario"), sep = "_") %>%
+  mutate(variable = factor(variable, levels = c("temperature", "wet bulb", "flood", "water limitation")))
+
+
+
+current <- combined_data2 %>%
+  filter(time == "current") %>%
+  rename(current_value = value) %>%
+  dplyr::select(-time)
+
+future_change <- combined_data2 %>%
+  filter(time != "current") %>%
+  rename(proj_value = value) %>%
+  left_join(current, by=c("scenario", "taxa", "variable")) %>%
+  mutate(proj_change = proj_value - current_value)
+
+```
+
+Plotting the data
+```{r}
+#install.packages("envalysis")
+library(envalysis)
+#install.packages("patchwork")
+library(patchwork)
+
+ssp2 <- ggplot(data = filter(future_change, time=="near-future" & scenario == "ssp245"), aes(x = taxa, y = proj_change, fill = variable)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+  theme_publish() +
+  labs(title = "SSP 2",
+       y = "Projected change in pressure",
+       x = "") +
+  scale_x_discrete(limits = rev(levels(future_change$taxa))) + 
+  scale_fill_manual(values = c("wet bulb" = "#C44221", 
+                               "temperature" = "#ED6F2E", 
+                               "flood" = "#22AECC", 
+                               "water limitation" = "#D2AE7B")) +
+  theme(
+    legend.position = c(0.9, -0.06), 
+    legend.title = element_blank(),
+    legend.justification = c(1, 0),
+    legend.box.just = "right",
+    axis.title.x = element_text(color = "transparent"),  # Make x-axis title transparent
+    axis.text.x = element_text(color = "transparent"),   # Make x-axis text transparent
+    axis.ticks.x = element_line(color = "transparent"),  # Make x-axis ticks transparent
+    axis.line.x = element_line(color = "transparent")    # Make x-axis line transparent
+  ) +
+  guides(fill = guide_legend(nrow = 4, keywidth = 1, keyheight = 1)) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "gray", linewidth=2, alpha = 0.5) + 
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth=0.5, alpha = 0.5) +
+  ylim(-0.1, 0.55) + 
+  theme(plot.margin = margin(b = -2, unit = "cm"))
+
+
+#ggsave(here("figs/output/projected_change_ssp2.png"), width = 5, height=3, units="in")
+
+ssp5 <- ggplot(data = filter(future_change, time=="near-future" & scenario == "ssp585"), aes(x = taxa, y = proj_change, fill = variable)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +
+  theme_publish() +
+  labs(title = "SSP 5",
+       y = "Projected change in pressure",
+       x = "") +
+  scale_x_discrete(limits = rev(levels(future_change$taxa))) + # To have 0 in the middle
+  scale_fill_manual(values = c("wet bulb" = "#C44221", 
+                               "temperature" = "#ED6F2E", 
+                               "flood" = "#22AECC", 
+                               "water limitation" = "#D2AE7B")) +
+  theme(legend.position = "none") +  # Remove legend
+  geom_hline(yintercept = 0, linetype = "solid", color = "gray", linewidth=1.5, alpha = 0.5) + 
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth=0.5, alpha = 0.5) + 
+  ylim(-0.1, 0.55)+ 
+  theme(plot.margin = margin(t = -2, unit = "cm"))
+
+
+#ggsave(here("figs/output/projected_change_ssp5.png"), width = 5, height=3, units="in")
+
+stacked <- ssp2/ssp5
+ggsave("figs/output/fig6.png", width = 5, height = 6)
+
+```
+
+Ended here, so following might need to be revised.
+
+Get cumulative pressures in the same way (cumulative pressures are multiplicative so viewing individual pressures isn't exactly intuitive).
+
+```{r}
+
+for(yr_scen in yr_scens){
+#yr_scen = yr_scens[4]
+  
+  for(taxon in taxa){ 
+  # taxon = "trout"
+rast_paths <- filter(combos, year_scenario %in% yr_scen) %>%
+  mutate(file_name = ifelse(pressure == "tmp_taxa", paste0(taxon, file_name), file_name)) %>%
+  mutate(path = sprintf("%s/%s.tif", file_path, file_name)) %>%
+  pull(path)
+cat(length(rast_paths))
+
+rast_stack <- rast(rast_paths)
+rast_stack[is.na(rast_stack)] <- 0
+rast_stack_inverse <- 1-rast_stack
+rast_prod <- app(rast_stack_inverse, fun=prod)
+#rast_gm_inverse <- rast_prod^(1/dim(rast_stack)[3])
+rast_gm <- 1-rast_prod
+#writeRaster(rast_gm, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/taxa_pressures/%s_%s.tif", yr_scen, taxon), overwrite=TRUE)
+}}
+```
+
+

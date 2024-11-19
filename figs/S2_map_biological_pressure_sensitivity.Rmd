@@ -1,0 +1,86 @@
+---
+title: "Taxa biological pressures"
+output: html_document
+date: "2023-10-03"
+editor_options: 
+  chunk_output_type: console
+---
+This creates current maps for each taxa for sensitivity to thermal pressure model.
+```{r}
+library(terra)
+library(tidyverse)
+library(RColorBrewer)
+
+current_cols <- c("#f0eada", brewer.pal("RdPu", n=9)[2:9])
+
+US <- terra::rast(here("spatial/USA_raster.tif"))
+
+
+```
+
+
+function to make a 1 x 3 plot for each taxa of current model (1 month buffer) and more strict model (no buffer) and less strict model (2 month buffer)
+```{r}
+
+taxon_plot <- function(taxon){ #taxon = "carp"
+
+## plot function start
+taxa_plot_function <- function(rasterfile){ #rasterfile = current_raster_pt
+  ggplot() +
+ geom_tile(data = rasterfile, aes(x = x, y = y, fill = value)) +
+ theme_classic() +
+ scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+ xlim(-4000000, 3000000) + ylim(100000, 6200000) +
+ theme_void() + 
+ theme(legend.position = "none",
+       panel.border = element_rect(fill = NA, color = "lightgray", size = 2)) + # This line adds the border
+ geom_sf(data=us_outline, fill=NA, color = "darkgray", size=2)
+}
+## plot function end  
+  
+# current plot
+current <- sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/rescaled_yearly_crs/%s_Tavg_ssp245_2001-2020.tif", taxon)
+current_raster <- terra::rast(current) 
+current_raster <- terra::ifel(is.na(current_raster), 0, current_raster) * US
+current_raster_pt <- as.data.frame(current_raster, xy=TRUE)
+colnames(current_raster_pt) <- c("x", "y", "value")
+
+current_plot <- taxa_plot_function(current_raster_pt)
+
+# no_buffer
+no_buffer <- sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly_crs/no_buffer_%s_Tavg_ssp245_2001-2020.tif", taxon)
+no_buffer_raster <- terra::rast(no_buffer)
+no_buffer_raster <- terra::ifel(is.na(no_buffer_raster), 0, no_buffer_raster) * US
+no_buffer_raster_pt <- as.data.frame(no_buffer_raster, xy=TRUE)
+colnames(no_buffer_raster_pt) <- c("x", "y", "value")
+
+no_buffer_plot <- taxa_plot_function(no_buffer_raster_pt)
+
+# extra buffer plot
+extra_buffer <-  sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/Tavg_taxa_prs/sensitivity/rescaled_yearly_crs/two_month_buffer_%s_Tavg_ssp245_2001-2020.tif", taxon)
+two_month_buffer_raster <- terra::rast(extra_buffer)
+two_month_buffer_raster <- terra::ifel(is.na(two_month_buffer_raster), 0, two_month_buffer_raster) * US
+two_month_buffer_raster_pt <- as.data.frame(two_month_buffer_raster, xy=TRUE)
+colnames(two_month_buffer_raster_pt) <- c("x", "y", "value")
+
+two_month_buffer_plot <- taxa_plot_function(two_month_buffer_raster_pt)
+
+ggarrange(current_plot, no_buffer_plot, two_month_buffer_plot, nrow=1)
+
+}
+
+```
+
+Make plots for each taxa
+```{r}
+bass_plot <- taxon_plot("bass")
+carp_plot <- taxon_plot("carp")
+catfish_plot <- taxon_plot("catfish")
+perch_plot <- taxon_plot("perch")
+sturgeon_plot <- taxon_plot("sturgeon")
+tilapia_plot <- taxon_plot("tilapia")
+trout_plot <- taxon_plot("trout")
+
+myplot <- ggarrange(NULL, bass_plot, NULL, catfish_plot, NULL, carp_plot, NULL, tilapia_plot, NULL, trout_plot, NULL, perch_plot, NULL, sturgeon_plot, nrow=14, common.legend = TRUE, heights=c(0.2, 1, 0.02, 1, 0.02, 1, 0.02, 1, 0.02, 1, 0.02, 1, 0.02, 1))
+myplot
+ggsave("figs/output/fig_S2.png", width=3.5, height=8, units="in")

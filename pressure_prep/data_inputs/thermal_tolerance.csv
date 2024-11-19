@@ -1,0 +1,8 @@
+stock,low_growth_limit,low_opt,high_opt,high_growth_limit,overwinter,harvest_time
+carp,0,3,30,41,n,8
+tilapia,13,20,32,39,n,5
+catfish,0,10,35,38,y,7
+perch,0,6,25,33,n,12
+sturgeon,0,9,26,28,y,12
+trout,0,10,15.5,25.5,y,9
+bass, 0, 10, 32, 33, y,7

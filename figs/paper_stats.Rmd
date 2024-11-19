@@ -1,0 +1,206 @@
+---
+title: "Paper stats"
+output: html_document
+date: "2023-09-28"
+editor_options: 
+  chunk_output_type: console
+---
+Counties with aquaculture
+
+```{r}
+
+all_data <- readRDS("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/all_data.rds")
+
+locations <- all_data %>%
+  mutate(prob =  Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d + Value + annual_avg_estabs_count) %>%
+  mutate(prob = as.character(prob)) %>%
+  st_set_geometry(NULL)
+ 
+# proportion of counties with aquaculture:
+sum(locations$prob >=1)/3143  # https://en.wikipedia.org/wiki/List_of_United_States_counties_and_county_equivalents#:~:text=In%20all%2C%20the%2050%20states,United%20States%20as%20county%20equivalents.
+
+# do all states have aquaculture
+tmp <- locations %>%
+  filter(prob >0)
+
+table(tmp$STATEFP)
+
+# # states with >90% of counties with aquaculture
+locations %>%
+  group_by(STATEFP) %>%
+  mutate(n_counties = n()) %>%
+  mutate(n_counties_aq = sum(prob>0)) %>%
+  dplyr::select(STATEFP, n_counties, n_counties_aq) %>%
+  unique() %>%
+  mutate(prop_counties = n_counties_aq/n_counties) %>%
+  dplyr::arrange(-prop_counties) %>%
+  print(n=50)
+
+
+```
+
+
+Fish production
+```{r}
+production <- read.csv(here("aquaculture_location/aq_production.csv"))
+
+production$tonnes[production$type == "Catfish"]/sum(production$tonnes)
+
+```
+
+Wet bulb temperature
+```{r}
+US <- terra::rast(here("spatial/USA_raster.tif"))
+terra::global(US, "sum", na.rm=TRUE)
+
+
+wb_ssp2_now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp245_2001-2020.tif")
+
+wb_ssp2_now <- wb_ssp2_now*US
+wb_ssp2_boolean <- terra::ifel(wb_ssp2_now > 0, 1, 0)
+terra::global(wb_ssp2_boolean, "sum", na.rm=TRUE)
+88340/373763
+
+wb_boolean <- terra::ifel(wb_now > 0.5, 1, 0)
+terra::global(wb_boolean, "sum", na.rm=TRUE)
+2898*25
+
+
+wb_ssp5_now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp585_2001-2020.tif")
+
+wb_ssp5_now <- wb_ssp5_now*US
+wb_ssp5_boolean <- terra::ifel(wb_ssp5_now > 0, 1, 0)
+terra::global(wb_ssp5_boolean, "sum", na.rm=TRUE)
+89426/373763
+
+
+wb_ssp245 <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp245_2041-2060.tif")
+wb_ssp245 <- wb_ssp245*US
+wb_boolean <- terra::ifel(wb_ssp245 > 0.5, 1, 0)
+terra::global(wb_boolean, "sum", na.rm=TRUE)
+7820*25
+
+wb_change <- terra::ifel(wb_ssp245 > wb_ssp2_now, 1, 0)
+terra::global(wb_change, "sum", na.rm=TRUE)
+142020/373763
+wb_change <- terra::ifel(wb_ssp245 < wb_ssp2_now, 1, 0)
+terra::global(wb_change, "sum", na.rm=TRUE)
+0
+
+wb_ssp5 <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp585_2041-2060.tif")
+wb_ssp5 <- wb_ssp5*US
+wb_boolean <- terra::ifel(wb_ssp5 > 0.5, 1, 0)
+terra::global(wb_boolean, "sum", na.rm=TRUE)
+9733*25
+
+wb_change <- terra::ifel(wb_ssp5 > wb_ssp5_now, 1, 0)
+terra::global(wb_change, "sum", na.rm=TRUE)
+158101/373763
+
+wb_change <- terra::ifel(wb_ssp5 < wb_ssp5_now, 1, 0)
+terra::global(wb_change, "sum", na.rm=TRUE)
+0/373763
+
+
+```
+
+
+## Drought stress
+```{r}
+
+US <- terra::rast(here("spatial/USA_raster.tif"))
+terra::global(US, "sum", na.rm=TRUE)
+
+
+drought_ssp2_now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp245_2001-2020.tif")
+drought_ssp2_now <- drought_ssp2_now*US
+
+drought_ssp5_now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp585_2001-2020.tif")
+drought_ssp5_now <- drought_ssp5_now*US
+
+
+drought_boolean <- terra::ifel(drought_now > 0, 1, 0)
+terra::global(drought_boolean, "sum", na.rm=TRUE)
+82369/373763 # 22%
+
+drought_extreme <- terra::ifel(drought_ssp2_now >= 0.5, 1, 0)
+terra::global(drought_extreme, "sum", na.rm=TRUE)
+24522/373763 # 7%
+
+drought_ssp245 <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp245_2041-2060.tif")
+drought_ssp245 <- drought_ssp245*US
+
+drought_change <- terra::ifel(drought_ssp245 > drought_ssp2_now, 1, 0)
+terra::global(drought_change, "sum", na.rm=TRUE)
+91640/373763
+
+drought_change <- terra::ifel(drought_ssp245 < drought_ssp2_now, 1, 0)
+terra::global(drought_change, "sum", na.rm=TRUE)
+0/373763
+
+
+drought_extreme <- terra::ifel(drought_ssp245 >= 0.5, 1, 0)
+terra::global(drought_extreme, "sum", na.rm=TRUE)
+31825/373763
+
+
+drought_change <- terra::ifel(drought_ssp585 > drought_ssp5_now, 1, 0)
+terra::global(drought_change, "sum", na.rm=TRUE)
+95358/373763
+drought_change <- terra::ifel(drought_ssp245 < drought_ssp5_now, 1, 0)
+terra::global(drought_change, "sum", na.rm=TRUE)
+0
+
+
+drought_extreme <- terra::ifel(drought_ssp585 >= 0.5, 1, 0)
+terra::global(drought_extreme, "sum", na.rm=TRUE)
+34942/373763
+
+```
+
+
+## Flood
+```{r}
+
+
+US <- terra::rast(here("spatial/USA_raster.tif"))
+terra::global(US, "sum", na.rm=TRUE)
+
+
+flood_now <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_historical_rescaled.tif")
+
+flood_now <- flood_now*US
+flood_boolean <- terra::ifel(flood_now > 0, 1, 0)
+terra::global(flood_boolean, "sum", na.rm=TRUE)
+9438/373763 # 2.5%
+
+flood_ssp245 <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_rcp4p5_2030_rescaled.tif")
+flood_ssp245 <- flood_ssp245*US
+
+flood_change <- terra::ifel(flood_ssp245 > flood_now, 1, 0)
+terra::global(flood_change, "sum", na.rm=TRUE)
+2938/373763 # 0.8%
+
+flood_change <- terra::ifel(flood_ssp245 < flood_now, 1, 0)
+terra::global(flood_change, "sum", na.rm=TRUE)
+5503/373763 #1.5%
+
+flood_ssp5 <- terra::rast("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_rcp8p5_2030_rescaled.tif")
+flood_ssp5 <- flood_ssp5*US
+
+flood_change <- terra::ifel(flood_ssp5 > flood_now, 1, 0)
+terra::global(flood_change, "sum", na.rm=TRUE)
+3458/373763
+
+flood_change <- terra::ifel(flood_ssp5 < flood_now, 1, 0)
+terra::global(flood_change, "sum", na.rm=TRUE)
+4923/373763
+
+
+```
+
+## Cumulative
+```{r}
+
+
+```

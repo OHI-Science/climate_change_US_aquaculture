@@ -1,0 +1,494 @@
+---
+title: "Figure 3"
+author: "Cat Fong"
+date: "2022-08-17"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This creates the maps of the individual and cumulative operational pressures.
+```{r some libraries}
+library(USAboundaries)
+library(ggplot2)
+library(cowplot)
+library(ggpubr)
+library(here)
+library(sf)
+```
+
+```{r read in data}
+US <- terra::rast(here("spatial/USA_raster.tif"))
+
+pressure_prep <- function(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/current_ssp245_no_taxa_specific.tif"){
+
+tmp_raster <- terra::rast(path)
+tmp_raster[is.na(tmp_raster)] <- 0
+tmp_raster <- tmp_raster*US
+tmp_raster
+}
+
+#cumulative
+cumulative_current_ssp245 <- pressure_prep(path =  "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/current_ssp245_no_taxa_specific.tif")
+
+cumulative_near_ssp245 <- pressure_prep(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/near-future_ssp245_no_taxa_specific.tif")
+
+cumulative_current_ssp585 <- pressure_prep(path =  "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/current_ssp585_no_taxa_specific.tif")
+
+cumulative_near_ssp585 <- pressure_prep(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/combined_pressures/near-future_ssp585_no_taxa_specific.tif")
+
+#wet bulb
+
+wet_bulb_current_ssp245 <- pressure_prep(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp245_2001-2020.tif")
+
+wet_bulb_near_ssp245<-pressure_prep(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp245_2021-2040.tif")
+
+wet_bulb_current_ssp585 <- pressure_prep(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp585_2001-2020.tif")
+
+wet_bulb_near_ssp585 <- pressure_prep(path = "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/wet_bulb/temp_wb_year_rescaled_rescaled_crs/wb_ssp585_2021-2040.tif")
+
+#drought 
+drought_current_ssp245 <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp245_2001-2020.tif")
+
+drought_near_ssp245 <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp245_2021-2040.tif")
+
+drought_current_ssp585 <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp585_2001-2020.tif")
+
+drought_near_ssp585 <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/drought/cmd_year_rescaled_crs/CMD_ssp585_2021-2040.tif")
+
+#flood 
+flood_current <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_historical_rescaled.tif")
+
+flood_near_ssp245 <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_rcp4p5_2030_rescaled.tif")
+
+flood_near_ssp585 <- pressure_prep("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/flood/pressure/river_coast_rcp8p5_2030_rescaled.tif")
+
+```
+
+```{r calculate differences}
+
+# the crit point is the maximum plotting value
+diff_function <- function(current_raster = cumulative_current_ssp245, future_raster = cumulative_near_ssp245,
+                          crit_min = -0.25, crit_max = 0.25){
+  
+  projected_change <- future_raster - current_raster
+  projected_change <- terra::ifel(projected_change > crit_max, crit_max, projected_change)
+  projected_change <- terra::ifel(projected_change < crit_min, crit_min, projected_change)
+}
+
+cumulative_dif_near_ssp245 <- diff_function(future_raster = cumulative_near_ssp245, current_raster = cumulative_current_ssp245)
+cumulative_dif_near_ssp585 <- diff_function(future_raster = cumulative_near_ssp585, current_raster = cumulative_current_ssp585)
+
+drought_dif_near_ssp245 <- diff_function(future_raster=drought_near_ssp245, current_raster=drought_current_ssp245)
+drought_dif_near_ssp585 <- diff_function(future_raster = drought_near_ssp585, current_raster = drought_current_ssp585)
+
+flood_dif_near_ssp245 <- diff_function(future_raster = flood_near_ssp245, current_raster = flood_current)
+flood_dif_near_ssp585 <- diff_function(future_raster = flood_near_ssp585, current_raster = flood_current)
+
+wet_bulb_dif_near_ssp245 <- diff_function(future_raster = wet_bulb_near_ssp245, current_raster = wet_bulb_current_ssp245)
+wet_bulb_dif_near_ssp585 <- diff_function(future_raster = wet_bulb_near_ssp585, current_raster = wet_bulb_current_ssp585)
+
+```
+
+```{r convert to points}
+#convert to points
+
+dataframe_convert <- function(r=wet_bulb_current_ssp245){
+  temp <- as.data.frame(r, xy=TRUE)
+  colnames(temp) <- c("x", "y", "value")
+  temp
+}
+
+pt_wet_bulb_current <- dataframe_convert(r=wet_bulb_current_ssp245)
+pt_wet_bulb_dif_near_ssp245 <- dataframe_convert(wet_bulb_dif_near_ssp245)
+pt_wet_bulb_dif_near_ssp585 <- dataframe_convert(wet_bulb_dif_near_ssp585)
+
+pt_flood_current <- dataframe_convert(flood_current)
+pt_flood_dif_near_ssp245 <- dataframe_convert(flood_dif_near_ssp245)
+pt_flood_dif_near_ssp585 <- dataframe_convert(flood_dif_near_ssp585)
+
+pt_drought_current <- dataframe_convert(drought_current_ssp245)
+pt_drought_dif_near_ssp245 <- dataframe_convert(drought_dif_near_ssp245)
+pt_drought_dif_near_ssp585 <- dataframe_convert(drought_dif_near_ssp585)
+
+pt_cumulative_current <- dataframe_convert(cumulative_current_ssp245)
+pt_cumulative_dif_near_ssp245 <- dataframe_convert(cumulative_dif_near_ssp245)
+pt_cumulative_dif_near_ssp585 <- dataframe_convert(cumulative_dif_near_ssp585)
+
+```
+
+# Get together plotting functions and such
+```{r make some maps- drought}
+
+## Get current color scheme
+library(RColorBrewer)
+current_cols <- c("#f0eada", brewer.pal("RdPu", n=9)[2:9])
+
+library(wesanderson)
+pal <- wes_palette("Zissou1")
+change_cols <- c("#3A9AB2", "#79B6C5", "#ABDDDE", "#f0eada", "#E1AF00", "#FA8400", "#972D14") 
+                 #"#F22300")
+
+#change_cols <- rev(brewer.pal("Spectral", n=11))
+
+## Get boundaries
+#install.packages("tigris")
+library(rnaturalearth)
+library(tigris)
+us_county <- st_read(here("spatial/state_county_shp/state_county_shp.shp"))
+
+us_outline <- ne_countries(country = "United States of America", returnclass = "sf", scale="large")
+us_outline <- st_transform(us_outline, terra::crs(drought_current_ssp245))
+plot(us_outline$geometry)
+
+us_states <- ne_states(country = "United States of America", returnclass = "sf", scale = "large")
+us_states <- st_transform(us_states, terra::crs(drought_current_ssp245))
+
+alaska <- us_states[us_states$name == "Alaska", ]
+plot(alaska$geometry)
+
+hawaii <- us_states[us_states$name == "Hawaii", ]
+plot(hawaii$geometry)
+
+## create functions for different plots
+
+#mainland
+mainland_current_plot <- function(raster_name=pt_drought_current){
+mainland <- ggplot() +
+ geom_tile(data = raster_name , aes(x = x, y = y, fill = value)) +
+      theme_classic()+ #ggtitle("   Current drought") + 
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-3250000, 2250000) + ylim(125000, 3300000) +
+  theme_void() + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5)   
+
+mainland
+}
+
+mainland_change_plot <- function(raster_name=pt_cumulative_dif_near_ssp585){
+mainland <- ggplot() +
+ geom_tile(data = raster_name , aes(x = x, y = y, fill = value)) +
+      theme_classic()+ #ggtitle("   Current drought") + 
+  scale_fill_gradientn(colours = change_cols, limit=c(-0.25, 0.25)) +
+  xlim(-3250000, 2250000) + ylim(125000, 3300000) +
+  theme_void() + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5)   
+
+mainland
+}
+
+
+#alaska
+alaska_current_plot <- function(raster_name=pt_drought_current) {
+
+ alaska <- ggplot() +
+ geom_tile(data = raster_name , aes(x = x, y = y, fill = value)) +
+  theme_classic() +
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-5000000, -2150000)+ylim(3900000, 6200000) +
+  theme_void() +
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1)) 
+ 
+ alaska
+}
+
+alaska_change_plot <- function(raster_name=pt_drought_current) {
+
+ alaska <- ggplot() +
+ geom_tile(data = raster_name , aes(x = x, y = y, fill = value)) +
+  theme_classic() +
+ scale_fill_gradientn(colours = change_cols, limit=c(-0.25, 0.25)) +
+  xlim(-5000000, -2150000)+ylim(3900000, 6200000) +
+  theme_void() +
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1)) 
+ 
+ alaska
+}
+
+ 
+#hawaii
+
+hawaii_current_plot <-function(raster_name=pt_drought_current) {
+
+  hawaii <- ggplot() +
+ geom_tile(data = raster_name, aes(x = x, y = y, fill = value)) +
+  theme_classic() + 
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-6300000, -5950000) +
+  ylim(1500000, 2100000) +
+  theme_void() +
+  theme(legend.position = "none") + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha = 0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1))
+  
+  hawaii
+}
+
+hawaii_change_plot <-function(raster_name=pt_drought_current) {
+
+  hawaii <- ggplot() +
+ geom_tile(data = raster_name, aes(x = x, y = y, fill = value)) +
+  theme_classic() + 
+ scale_fill_gradientn(colours = change_cols, limit=c(-0.25, 0.25)) +
+  xlim(-6300000, -5950000) +
+  ylim(1500000, 2100000) +
+  theme_void() +
+  theme(legend.position = "none") + 
+  theme(legend.position = "none") +
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha = 0.5) 
+#  theme(panel.border = element_rect(colour = "gray", fill=NA, size=1))
+  
+  hawaii
+}
+
+
+# combine mainland, alaska, hawaii
+
+M_A_H <- function(plot1 = mainland, plot2 = alaska, plot3 = hawaii) {
+combined <- ggdraw() +
+  draw_plot(plot1) +
+  draw_plot(plot2, width=0.35, height=0.40,  x = 0, y = 0)+
+  draw_plot(plot3,  width=0.2, height=0.3,  x = .3, y = .04)+
+  theme(panel.background = element_rect(fill = '#b9c9c9', color="darkgray", size = 0.5))
+combined
+}
+
+
+```
+
+Drought
+```{r}
+
+# current
+mainland <- mainland_current_plot(raster_name = pt_drought_current)
+alaska <- alaska_current_plot(raster_name = pt_drought_current)
+hawaii <- hawaii_current_plot(raster_name = pt_drought_current)
+
+drought_current <- M_A_H()
+
+# near ssp245
+mainland <- mainland_change_plot(raster_name = pt_drought_dif_near_ssp245)
+alaska <- alaska_change_plot(raster_name = pt_drought_dif_near_ssp245)
+hawaii <- hawaii_change_plot(raster_name = pt_drought_dif_near_ssp245)
+
+drought_near_ssp245 <- M_A_H()
+
+# near ssp585
+mainland <- mainland_change_plot(raster_name = pt_drought_dif_near_ssp585)
+alaska <- alaska_change_plot(raster_name = pt_drought_dif_near_ssp585)
+hawaii <- hawaii_change_plot(raster_name = pt_drought_dif_near_ssp585)
+
+drought_near_ssp585 <- M_A_H()
+
+
+drought <- ggarrange(drought_current, drought_near_ssp245, drought_near_ssp585, ncol=1, common.legend=TRUE)
+
+
+```
+
+
+
+Flood
+```{r}
+
+# current
+mainland <- mainland_current_plot(raster_name = pt_flood_current)
+alaska <- alaska_current_plot(raster_name = pt_flood_current)
+hawaii <- hawaii_current_plot(raster_name = pt_flood_current)
+
+flood_current <- M_A_H()
+
+# near ssp245
+mainland <- mainland_change_plot(raster_name = pt_flood_dif_near_ssp245)
+alaska <- alaska_change_plot(raster_name = pt_flood_dif_near_ssp245)
+hawaii <- hawaii_change_plot(raster_name = pt_flood_dif_near_ssp245)
+
+flood_near_ssp245 <- M_A_H()
+
+# near ssp585
+mainland <- mainland_change_plot(raster_name = pt_flood_dif_near_ssp585)
+alaska <- alaska_change_plot(raster_name = pt_flood_dif_near_ssp585)
+hawaii <- hawaii_change_plot(raster_name = pt_flood_dif_near_ssp585)
+
+flood_near_ssp585 <- M_A_H()
+
+
+flood <- ggarrange(flood_current, flood_near_ssp245, flood_near_ssp585, ncol=1, common.legend=TRUE)
+
+```
+Wet bulb
+```{r}
+
+# current
+mainland <- mainland_current_plot(raster_name = pt_wet_bulb_current)
+alaska <- alaska_current_plot(raster_name = pt_wet_bulb_current)
+hawaii <- hawaii_current_plot(raster_name = pt_wet_bulb_current)
+
+wet_bulb_current <- M_A_H()
+
+# near ssp245
+mainland <- mainland_change_plot(raster_name = pt_wet_bulb_dif_near_ssp245)
+alaska <- alaska_change_plot(raster_name = pt_wet_bulb_dif_near_ssp245)
+hawaii <- hawaii_change_plot(raster_name = pt_wet_bulb_dif_near_ssp245)
+
+wet_bulb_near_ssp245 <- M_A_H()
+
+# near ssp585
+mainland <- mainland_change_plot(raster_name = pt_wet_bulb_dif_near_ssp585)
+alaska <- alaska_change_plot(raster_name = pt_wet_bulb_dif_near_ssp585)
+hawaii <- hawaii_change_plot(raster_name = pt_wet_bulb_dif_near_ssp585)
+
+wet_bulb_near_ssp585 <- M_A_H()
+
+
+wet_bulb <- ggarrange(wet_bulb_current, wet_bulb_near_ssp245, wet_bulb_near_ssp585, ncol=1, common.legend=TRUE)
+
+
+```
+
+
+
+cumulative
+```{r}
+
+# current
+mainland <- mainland_current_plot(raster_name = pt_cumulative_current)
+alaska <- alaska_current_plot(raster_name = pt_cumulative_current)
+hawaii <- hawaii_current_plot(raster_name = pt_cumulative_current)
+
+cumulative_current <- M_A_H()
+
+# near ssp245
+mainland <- mainland_change_plot(raster_name = pt_cumulative_dif_near_ssp245)
+alaska <- alaska_change_plot(raster_name = pt_cumulative_dif_near_ssp245)
+hawaii <- hawaii_change_plot(raster_name = pt_cumulative_dif_near_ssp245)
+
+cumulative_near_ssp245 <- M_A_H()
+
+# near ssp585
+mainland <- mainland_change_plot(raster_name = pt_cumulative_dif_near_ssp585)
+alaska <- alaska_change_plot(raster_name = pt_cumulative_dif_near_ssp585)
+hawaii <- hawaii_change_plot(raster_name = pt_cumulative_dif_near_ssp585)
+
+cumulative_near_ssp585 <- M_A_H()
+
+
+cumulative <- ggarrange(cumulative_current, cumulative_near_ssp245, cumulative_near_ssp585, ncol=1, common.legend=TRUE)
+
+```
+
+
+```{r all together}
+pdf(file = here("figs/fig_1_mrf.pdf"), width = 15, height = 8)
+ggarrange(drought, flood, wet_bulb, cumulative, ncol=4, common.legend=TRUE) #1200 x whatever, tiff
+dev.off()
+
+
+library(cowplot)
+# get legends
+current <- ggplot() +
+ geom_tile(data = pt_drought_current , aes(x = x, y = y, fill = value)) +
+      theme_classic()+ #ggtitle("   Current drought") + 
+  scale_fill_gradientn(colours = current_cols, limit=c(0, 1)) +
+  xlim(-3250000, 2250000) + ylim(125000, 3300000) +
+  theme_void() + 
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5)   
+legend <- get_legend(current)
+ggsave(here("figs/pressures_legend_current.png"), legend)
+
+
+change <- ggplot() +
+ geom_tile(data = pt_cumulative_dif_near_ssp585, aes(x = x, y = y, fill = value)) +
+      theme_classic()+ #ggtitle("   Current drought") + 
+  scale_fill_gradientn(colours = change_cols, limit=c(-0.25, 0.25)) +
+  xlim(-3250000, 2250000) + ylim(125000, 3300000) +
+  theme_void() + 
+  geom_sf(data=us_outline, fill=NA, color = "gray50", size=0.1, alpha=0.5)   
+
+legend <- get_legend(change)
+ggsave(here("figs/pressures_legend_change.png"), legend)
+
+
+```
+
+MRF Note: not sure where these stats are used, but will need to be updated based on small changes in object names
+
+```{r paper calculations}
+#run chucks 1, 3, 4 (not 2!) first. 2 puts in thresholds of +/-0.25
+#fraction with some drought stress
+(mean(pt_drought_dif_near_ssp245$value)-mean(pt_drought_current$value))/(mean(pt_drought_current$value))*100
+(mean(pt_drought_near_ssp585$value)-mean(pt_drought_current$value))/(mean(pt_drought_current$value))*100
+(mean(pt_flood_near_ssp245$value)-mean(pt_flood_current$value))/(mean(pt_flood_current$value))*100
+(mean(pt_flood_near_ssp585$value)-mean(pt_flood_current$value))/(mean(pt_flood_current$value))*100
+(mean(pt_wet_bulb_near_ssp245$value)-mean(pt_wet_bulb_current$value))/(mean(pt_wet_bulb_current$value))*100
+(mean(pt_wet_bulb_near_ssp585$value)-mean(pt_wet_bulb_current$value))/(mean(pt_wet_bulb_current$value))*100
+(mean(pt_cummulative_near_ssp245$value)-mean(pt_cummulative_current$value))/(mean(pt_cummulative_current$value))*100
+(mean(pt_cummulative_near_ssp585$value)-mean(pt_cummulative_current$value))/(mean(pt_cummulative_current$value))*100
+mean(pt_drought_current$value)
+mean(pt_drought_near_ssp245$value)
+mean(pt_drought_near_ssp585$value)
+median(pt_drought_current$value)
+median(pt_drought_near_ssp245$value)
+median(pt_drought_near_ssp585$value)
+sd(pt_drought_current$value)/sqrt(373763)
+sd(pt_drought_near_ssp245$value)/sqrt(373763)
+sd(pt_drought_near_ssp585$value)/sqrt(373763)
+mean(pt_flood_current$value)
+mean(pt_flood_near_ssp245$value)
+mean(pt_flood_near_ssp585$value)
+median(pt_flood_current$value)
+median(pt_flood_near_ssp245$value)
+median(pt_flood_near_ssp585$value)
+sd(pt_flood_current$value)/sqrt(373763)
+sd(pt_flood_near_ssp245$value)/sqrt(373763)
+sd(pt_flood_near_ssp585$value)/sqrt(373763)
+mean(pt_wet_bulb_current$value)
+mean(pt_wet_bulb_near_ssp245$value)
+mean(pt_wet_bulb_near_ssp585$value)
+median(pt_wet_bulb_current$value)
+median(pt_wet_bulb_near_ssp245$value)
+median(pt_wet_bulb_near_ssp585$value)
+sd(pt_wet_bulb_current$value)/sqrt(373763)
+sd(pt_wet_bulb_near_ssp245$value)/sqrt(373763)
+sd(pt_wet_bulb_near_ssp585$value)/sqrt(373763)
+mean(pt_cummulative_current$value)
+mean(pt_cummulative_near_ssp245$value)
+mean(pt_cummulative_near_ssp585$value)
+median(pt_cummulative_current$value)
+median(pt_cummulative_near_ssp245$value)
+median(pt_cummulative_near_ssp585$value)
+sd(pt_cummulative_current$value)/sqrt(373763)
+sd(pt_cummulative_near_ssp245$value)/sqrt(373763)
+sd(pt_cummulative_near_ssp585$value)/sqrt(373763)
+table(pt_drought_current$value>0)
+table(pt_drought_near_ssp245$value>0)
+table(pt_drought_near_ssp585$value>0)
+table(pt_flood_current$value>0)
+table(pt_flood_near_ssp245$value>0)
+table(pt_flood_near_ssp585$value>0)
+table(pt_wet_bulb_current$value>0)
+table(pt_wet_bulb_near_ssp245$value>0)
+table(pt_wet_bulb_near_ssp585$value>0)
+table(pt_cummulative_current$value>0)
+table(pt_cummulative_near_ssp245$value>0)
+table(pt_cummulative_near_ssp585$value>0)
+table(pt_drought_current$value==0)
+table(pt_drought_near_ssp245$value==0)
+table(pt_drought_near_ssp585$value==0)
+table(pt_flood_current$value==0)
+table(pt_flood_near_ssp245$value==0)
+table(pt_flood_near_ssp585$value==0)
+table(pt_wet_bulb_current$value==0)
+table(pt_wet_bulb_near_ssp245$value==0)
+table(pt_wet_bulb_near_ssp585$value==0)
+table(pt_cummulative_current$value==0)
+table(pt_cummulative_near_ssp245$value==0)
+table(pt_cummulative_near_ssp585$value==0)
+```

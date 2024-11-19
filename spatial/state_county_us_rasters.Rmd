@@ -1,0 +1,116 @@
+---
+title: "zonal_stats"
+output: html_document
+date: "2022-07-29"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+library(raster)
+library(fasterize)
+library(sf)
+library(tidyverse)
+library(here)
+
+```
+
+## Clean fips ID data
+Source: U.S. Census Bureau, Population Division	
+Internet Release Date: May 2018	
+```{r}
+fips <- read_csv(here("spatial/all-geocodes-v2017.csv"))
+table(fips$summary_level)
+
+fips %>%
+  filter(summary_level == "061") #towns
+
+fips %>%
+  filter(summary_level == "162") #cities
+
+fips %>%
+  filter(summary_level == "170") #????
+
+
+states <- fips %>%
+  filter(summary_level=="040") %>%
+  select(state_fips, state = name)
+
+county <- fips %>%
+  filter(summary_level == "050") %>%
+  select(state_fips, county_fips, county = name)
+
+region_id <- left_join(county, states, by="state_fips") %>%
+  mutate(fips = paste0(state_fips, county_fips))
+```
+
+##County polygon files
+
+Import empty maps and clean data
+-Fips codes: https://www.census.gov/programs-surveys/geography/guidance/geo-identifiers.html
+
+empty_counties contains the county level shape files. I elected to use the 500k because this is the finest resolution (1:500,000). 
+In the data file, STATEFP is the 2 digit county code for the state or territory while COUNTYFP is the 3 digit county code within the state. Concatanation would result in the FIPS code. 
+
+Clean up empty map data; Filter by the STATEFP associated with the states(ie remove territories)
+  American Samoa,	60
+  Guam,	66
+  Northern Mariana Islands,	69
+  Puerto Rico,	72
+  Virgin Islands,	78
+  district of columbia, 11
+
+Concatanate
+
+in 5070 crs
+
+```{r Location of Aquaculture 2}
+
+map_counties <- st_read("/home/shares/aquaculture/aquaculture_climatechange_usa/empty_maps/cb_2018_us_county_500k/cb_2018_us_county_500k.shp")
+
+map_counties <- map_counties[!map_counties$STATEFP  %in% c("60", "66", "69", "72", "78", "11" ),]
+
+map_counties$fips <- paste0(map_counties$STATEFP, map_counties$COUNTYFP)
+
+map_counties <- map_counties %>%
+  st_transform(crs = 5070)
+
+```
+
+## Join data
+Need to get state names!
+
+```{r}
+# check they all match up
+
+setdiff(map_counties$fips, region_id$fips)
+missing_map <- setdiff(region_id$fips, map_counties$fips)
+
+tmp <- filter(region_id, fips %in% missing_map)
+unique(tmp$state) #District of Colombia and Puerto Rico, this is fine
+
+map_counties_id <- map_counties %>%
+  left_join(region_id, by = "fips") %>%
+  mutate(state_fips = as.numeric(state_fips)) %>%
+  mutate(fips = as.numeric(fips)) %>%
+  mutate(us_id = 1)
+
+county_id_csv <- as_tibble(map_counties_id) %>%
+  select(state_fips, county_fips=fips, county_name=NAME, state_name=state, area_land=ALAND, area_water=AWATER)
+write_csv(county_id_csv, here("spatial/county_state_fips_ID.csv"))
+
+```
+
+
+Make some county and state and US rasters.
+```{r}
+template <- raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+
+state_ID <- fasterize(map_counties_id, template, field="state_fips")
+county_ID <- fasterize(map_counties_id, template, field="fips")
+usa_ID <- fasterize(map_counties_id, template, field="us_id")
+writeRaster(state_ID, here("spatial/state_fips_raster.tif"), overwrite=TRUE)
+writeRaster(county_ID, here("spatial/county_fips_raster.tif"), overwrite=TRUE)
+writeRaster(usa_ID, here("spatial/USA_raster.tif"), overwrite=TRUE)
+```

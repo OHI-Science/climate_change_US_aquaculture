@@ -1,0 +1,24 @@
+---
+title: "Spatial"
+output: html_document
+date: '2022-07-06'
+---
+Raster resolution and coordinate reference system we are using.
+
+```{r setup, include=FALSE}
+
+library(raster)
+
+template <- raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+
+```
+
+```{r}
+x <- raster()
+x <- raster(xmn=-6500000, xmx=2500000, ymn=100000, ymx=6200000)
+
+crs(x) <- CRS('+init=EPSG:5070')
+res(x) <- 5000
+
+x
+```

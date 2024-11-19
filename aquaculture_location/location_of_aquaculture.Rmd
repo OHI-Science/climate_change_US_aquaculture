@@ -1,0 +1,207 @@
+---
+title: "location_of_aquaculture"
+author: "Cat Fong"
+date: '2022-07-06'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(sf)
+library(sp)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(ggplot2)
+library(fasterize)
+library(ggmap)
+library(raster)
+library(rgdal)
+library(climateStability)
+library(viridis)
+library(RColorBrewer)
+library(here)
+
+```
+##Methods for each piece
+
+#Get the map data
+
+1) Import all data on location
+-Establishments (USBLS Census)
+-Water use (USGS) (aquaculture is rows 224- 235 in the water file)
+-Farms (USDA Census)
+
+## Establishments (USBLS Census)
+```{r Location of Aquaculture 1}
+
+establishments_raw <- read.csv("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/location_of_aquaculture/establishments.csv")
+
+keep <- c("fips", "annual_avg_estabs_count")
+
+establishments <- establishments_raw[keep]
+
+```
+
+## Water (USGS)
+
+```{r}
+water <- read.csv("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/location_of_aquaculture/water.csv", stringsAsFactors = FALSE)
+
+water_2015 <- subset(water, year=="2015")
+
+water_cols <- grep("fips|Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d", names(water_2015))
+water_aq <- water_2015[water_cols]
+
+
+#write.table(water_aq, "water_aq.csv", sep=",")
+#water_aq<-read.csv("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/location_of_aquaculture/water_aq.csv", stringsAsFactors = FALSE)
+
+water_aq$fips<-str_pad(water_aq$fips,5, pad = "0")
+
+```
+
+## Farms (USDA Census)
+
+```{r}
+farms <- read.csv("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/location_of_aquaculture/Farms.csv")
+
+farms <- subset(farms, Domain=="TOTAL")
+
+fips_and_zips <- read.csv("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/location_of_aquaculture/fips_and_zips.csv") %>% unique()
+
+farms <- left_join(farms, fips_and_zips, by="Zip.Code")
+
+farms$fips <- str_pad(farms$fips,5, pad = "0")
+farms <- farms %>%
+  dplyr::group_by(fips) %>%
+  dplyr::summarize(Value = sum(Value, na.rm=TRUE))
+
+```
+
+2) Import empty maps and clean data
+-Zip codes: https://www.census.gov/programs-surveys/geography/guidance/geo-areas/zctas.html
+-Fips codes: https://www.census.gov/programs-surveys/geography/guidance/geo-identifiers.html
+
+empty_zips contains the zip code shape files
+empty_counties contains the county level shape files. I elected to use the 500k because this is the finest resolution (1:500,000). 
+In the data file, STATEFP is the 2 digit county code for the state or territory while COUNTYFP is the 3 digit county code within the state. Concatanation would result in the FIPS code. 
+
+Clean up empty map data; Filter by the STATEFP associated with the states(ie remove territories)
+  American Samoa,	60
+  Guam,	66
+  Northern Mariana Islands,	69
+  Puerto Rico,	72
+  Virgin Islands,	78
+  district of columbia, 11
+
+Concatanate
+
+in 5070 crs
+
+```{r Location of Aquaculture 2}
+
+#empty_zips <- st_read("/home/shares/aquaculture/aquaculture_climatechange_usa/empty_maps/cb_2018_us_zcta210_500k/cb_2018_us_zcta510_500k.shp")
+
+empty_counties <- st_read("/home/shares/aquaculture/aquaculture_climatechange_usa/empty_maps/cb_2018_us_county_500k/cb_2018_us_county_500k.shp")
+
+empty_counties <- empty_counties %>%
+filter(!(STATEFP %in% c("60", "66", "69", "72", "78", "11" ) )) %>%
+  mutate(ALAND = round(ALAND,0),
+         AWATER = round(AWATER,0))
+
+fips <- paste0(empty_counties$STATEFP, empty_counties$COUNTYFP)
+
+empty_counties <- cbind(fips, empty_counties)
+
+empty_counties <- empty_counties %>%
+  st_transform(crs = 5070)
+st_write(empty_counties, "spatial/state_county_shp/state_county_shp.gpkg")
+```
+
+3)Merge the county level data with the estimates of where aquaculture
+```{r Location of Aquaculture 3}
+
+## checking data to make sure merges go well
+est_extras <- setdiff(establishments$fips, empty_counties$fips)
+tmp <- filter(establishments_raw, fips %in% est_extras) # states, other(towns/cities), puerto rico
+
+wat_extras <- setdiff(water_aq$fips, empty_counties$fips)
+filter(water, fips %in% wat_extras) # cutting: 46113   SD Shannon County
+filter(water, fips %in% "2270") # 2270 AK Wade Hampton Census Area
+
+farms_extras <- setdiff(farms$fips, empty_counties$fips)
+
+
+# joining 3 datasources to get most complete data.
+aq <- full_join(establishments, water_aq, by="fips")
+aq <- full_join(aq, farms, by="fips")
+
+
+all_data<-left_join(empty_counties, aq, by="fips")
+
+
+```
+4) make aquaculture data binary
+
+```{r Location of Aquaculture 4}
+all_data$annual_avg_estabs_count[all_data$annual_avg_estabs_count >= 1] <- 1
+all_data$annual_avg_estabs_count[all_data$annual_avg_estabs_count < 1] <- 0
+all_data$annual_avg_estabs_count[is.na(all_data$annual_avg_estabs_count)] <- 0 #are NA's zero?
+
+all_data$Value[all_data$Value >= 1] <- 1
+all_data$Value[all_data$Value < 1] <- 0
+all_data$Value[is.na(all_data$Value)] <- 0 #are NA's zero?
+
+all_data$Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d[all_data$Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d >= 1] <- 1
+
+all_data$Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d[all_data$Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d < 1] <- 0
+
+all_data$Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d[is.na(all_data$Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d)] = 0 #are NA's zero?
+
+all_data <- all_data %>%
+  mutate(fips = as.numeric(fips))
+
+#saveRDS(all_data, "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/all_data.rds")
+
+```
+
+5) Create empty raster and to the fasterize thing
+```{r Location of Aquaculture 5}
+
+x <- raster()
+x <- raster(xmn=-6500000, xmx=2500000, ymn=100000, ymx=6200000)
+
+crs(x) <- crs(all_data)
+res(x) <- 5000
+
+
+fips_raster<-fasterize(all_data, x, field="fips")
+#plot(fips_raster)
+
+```
+
+6) Make some maps
+
+```{r Location of Aquaculture 6}
+
+establishment_raster <- fasterize(all_data, x, field="annual_avg_estabs_count")
+plot(establishment_raster, box = FALSE, axes = FALSE,main="Establishments")
+
+farms_raster <- fasterize(all_data, x, field="Value")
+plot(farms_raster,box = FALSE, axes = FALSE, main="Farms")
+
+water_raster <- fasterize(all_data, x, field="Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d")
+plot(water_raster, box = FALSE, axes = FALSE, main="Water")
+
+all <- establishment_raster + farms_raster + water_raster
+
+plot(all,
+     box = FALSE,
+     axes = FALSE,
+     main = "Aquaculture")
+
+writeRaster(all, "/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif", overwrite=TRUE)
+
+tmp <- raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/aquaculture_location.tif")
+```

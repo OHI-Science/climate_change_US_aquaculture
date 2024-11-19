@@ -1,0 +1,9 @@
+presence,variable,value,yr_scen,taxa
+0,wb_ssp585_2001-2020,0.023884420896361395,current_ssp585,tilapia
+0,CMD_ssp585_2001-2020,0.07865046834424635,current_ssp585,tilapia
+0,inuncoast_historical_wtsub_hist_rp0005_0,0.0014175196735425031,current_ssp585,tilapia
+0,species_Tavg_ssp585_2001-2020,0.6744316795274781,current_ssp585,tilapia
+1,wb_ssp585_2001-2020,0.056506344874112116,current_ssp585,tilapia
+1,CMD_ssp585_2001-2020,0.09479935052871556,current_ssp585,tilapia
+1,inuncoast_historical_wtsub_hist_rp0005_0,0.002573168846189758,current_ssp585,tilapia
+1,species_Tavg_ssp585_2001-2020,0.07858071831539636,current_ssp585,tilapia

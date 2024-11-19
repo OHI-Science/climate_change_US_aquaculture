@@ -1,0 +1,38 @@
+---
+title: "CMIP6_NorthAmerica_rasterprep"
+output: html_document
+date: '2022-06-21'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(raster)
+library(tidyverse)
+```
+
+Convert files to tif data and save with folder name.
+```{r}
+names <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/NA_cmip6", pattern=".asc", recursive=TRUE)
+names <- gsub("/", "_", names)
+names <- gsub(".asc", ".tif", names)
+
+paths <- list.files("/home/shares/aquaculture/aquaculture_climatechange_usa/raw_data/NA_cmip6", pattern=".asc", recursive=TRUE, full=TRUE)
+
+for(i in 1:length(paths)){ # i = 232
+ # for(i in 230:233){ # i = 232
+  tmp <- raster(paths[i])
+  raster::crs(tmp) <- "EPSG:4326"
+
+  skip_to_next <- FALSE
+  print(i)
+tryCatch(
+  writeRaster(tmp, sprintf("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/NA_cmip_tiff/%s",
+              names[i]), overwrite=TRUE),
+  error=function(e) {skip_to_next <<- TRUE 
+                     cat("error on this one\n")})
+  if(skip_to_next) { next }
+#  check <- raster("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/NA_cmip_tiff/13GCMs_ensemble_ssp126_2001-2020M_CMD10.tif")
+}
+
+```

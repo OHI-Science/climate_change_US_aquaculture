@@ -1,0 +1,63 @@
+---
+title: "Figure 1"
+author: "Cat Fong"
+date: "2022-08-17"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r libraries}
+library(USAboundaries)
+library(ggplot2)
+library(cowplot)
+library(ggpubr)
+library(usmap)
+```
+
+```{r read in data}
+
+type <- read.csv(here("aquaculture_location/farm_types.csv"))
+type_fig <- ggplot(type, aes(x=reorder(Fish,+n), y=n))+
+  geom_bar(stat="identity", fill="skyblue")+theme_classic()+coord_flip()+
+  xlab("")+ ylab("")+ggtitle("B.) Number of farms")+
+  theme(plot.title = element_text(size=15))
+```
+
+
+```{r production}
+production <- read.csv(here("aquaculture_location/aq_production.csv"))
+production_fig <- ggplot(production, aes(x=reorder(type,+tonnes), y=tonnes))+
+  geom_bar(stat="identity", fill="skyblue")+theme_classic()+coord_flip()+
+  xlab("")+ ylab("")+ggtitle("C.) Tonnes produced")+
+  theme(plot.title = element_text(size=15))
+```
+
+
+```{r locations}
+
+
+all_data <- readRDS("/home/shares/aquaculture/aquaculture_climatechange_usa/prep_data/freshwater/mapping_aquaculture/all_data.rds")
+
+locations <- all_data %>%
+  mutate(prob =  Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d + Value + annual_avg_estabs_count) %>%
+  mutate(prob = as.character(prob)) %>%
+  st_set_geometry(NULL)
+
+# water = Aquaculture.total.self.supplied.withdrawals..fresh..in.Mgal.d
+# establishments = annual_avg_estabs_count
+# farms = Value
+
+
+location_figs <- plot_usmap(data = locations, values = "prob", lwd=0.05, color="gray60") +
+  scale_fill_manual(values =c("#D9DDDC","#46CDCF", "#3D84A8", "#48466D")
+,  name = "# sources", na.translate=FALSE) +
+  ggtitle("A.) Counties that likely have aquaculture") +
+  theme(legend.position = c(.9, .2)) +
+  theme(plot.title = element_text(size=15)) 
+
+
+```{together!}
+fishes<-ggarrange(type_fig, production_fig, nrow=1)
+ggarrange(location_figs, fishes, ncol=1)
+```
